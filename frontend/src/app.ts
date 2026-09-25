@@ -10,13 +10,15 @@ import {IconComponent} from './icons';
 
 type Catalog={id:number;name:string;code?:string;client_id?:number|null;description?:string};
 type Activity={id:number;action:string;subject_type:string;subject_id:number;title:string;created_at:string};
-type Entry={diagram?:Diagram;id:number;kind:'note'|'library'|'diagram';title:string;blocks:Block[];search_text:string;client_id:number|null;project_id:number|null;category:string;tags:string[];color:string;pinned:boolean;archived:boolean;media:Media[];updated_at:string};
+type Share={user_id:number;name?:string;email?:string;permission:'view'|'edit'};
+type Member={id:number;name:string;email:string};
+type Entry={diagram?:Diagram;id:number;kind:'note'|'library'|'diagram';title:string;blocks:Block[];search_text:string;client_id:number|null;project_id:number|null;category:string;tags:string[];color:string;pinned:boolean;archived:boolean;media:Media[];updated_at:string;visibility?:'private'|'workspace'|'shared';shares?:Share[];can_edit?:boolean};
 type User = {id: number; name: string; email: string;role:'admin'|'editor'|'reader';workspace_ids?:number[]};
 type Space={id:number;name:string;color:string};
 type Attachment = {id: number; name: string; size: number};
 type Step = {text: string; done: boolean};
-type Task = {is_fire:boolean;client_id?:number|null; project_id?:number|null; notes_blocks?:Block[]; sql_notes?:string|null; id: number; title: string; description: string | null; status: string; environment: string; priority: string; due_date: string | null; checklist: Step[]; attachments?: Attachment[]; attachments_count?: number; updated_at: string; created_at: string};
-type Draft = {is_fire:boolean;client_id:string; project_id:string; sql_notes:string; title: string; description: string; status: string; environment: string; priority: string; checklist_text: string};
+type Task = {task_type:'task'|'bug';tags?:string[];is_fire:boolean;notify_on_production:boolean;notify_emails?:string[];notification_message?:string;notification_fields?:string[];notification?:string;client_id?:number|null; project_id?:number|null; notes_blocks?:Block[]; sql_notes?:string|null; id: number; title: string; description: string | null; status: string; environment: string; priority: string; due_date: string | null; checklist: Step[]; attachments?: Attachment[]; attachments_count?: number; updated_at: string; created_at: string};
+type Draft = {task_type:'task'|'bug';tags:string;is_fire:boolean;notify_on_production:boolean;notify_emails:string;notification_message:string;notify_include_client:boolean;notify_include_project:boolean;notify_include_title:boolean;notify_include_description:boolean;notify_include_code:boolean;notify_include_status:boolean;notify_include_checklist:boolean;client_id:string; project_id:string; sql_notes:string; title: string; description: string; status: string; environment: string; priority: string; checklist_text: string};
 
 @Component({selector: 'app-root', standalone: true, imports: [CommonModule, FormsModule, NoteEditorComponent, ModalComponent, IconComponent, DiagramComponent, ReadingComponent], templateUrl: './workspace.html'})
 export class AppComponent implements OnInit {
@@ -29,12 +31,13 @@ export class AppComponent implements OnInit {
   loading = signal(false);
   error = signal('');
   notice = signal('');
+  autosaveState=signal<'idle'|'saving'|'saved'>('idle');private autosaveSnapshot='';private autosaveTimer:any;
   view = signal<string>('dashboard');
   tasks = signal<Task[]>([]);
   counts = signal<Record<string, number>>({});
   selected = signal<Task | null>(null);
   files: File[] = [];
-  email = ''; password = ''; query = ''; environment = '';
+  email = ''; password = ''; query = ''; environment = '';taskTag='';
   draft: Draft = this.emptyDraft();
   statusLabels: Record<string, string> = {pending: 'Pendiente', development: 'En desarrollo', review: 'En revisión', done: 'Completada'};
   environmentLabels: Record<string, string> = {local: 'Local', development: 'Desarrollo', qa:'QA', certification: 'Certificación', production: 'Producción'};
@@ -43,7 +46,7 @@ export class AppComponent implements OnInit {
   get environments(){return Object.entries(this.environmentLabels).filter(e=>e[0]!=='qa'||this.tasks().some(t=>t.environment==='qa')||this.draft.environment==='qa');}
   priorities = Object.entries(this.priorityLabels);
   total = computed(() => Object.values(this.counts()).reduce((sum, n) => sum + n, 0));
-  private emptyDraft(): Draft { return {is_fire:false,client_id:'', project_id:'', sql_notes:'', title: '', description: '', status: 'pending', environment: 'local', priority: 'normal', checklist_text: ''}; }
+  private emptyDraft(): Draft { return {task_type:'task',tags:'',is_fire:false,notify_on_production:false,notify_emails:'',notification_message:'Hola, la tarea ya quedó completada y disponible en Producción.',notify_include_client:true,notify_include_project:true,notify_include_title:true,notify_include_description:true,notify_include_code:true,notify_include_status:true,notify_include_checklist:true,client_id:'', project_id:'', sql_notes:'', title: '', description: '', status: 'pending', environment: 'local', priority: 'normal', checklist_text: ''}; }
 
 
   clients=signal<Catalog[]>([]); projects=signal<Catalog[]>([]);
@@ -55,14 +58,14 @@ export class AppComponent implements OnInit {
   groupBy=signal(localStorage.getItem('flujo-group')||'environment'); autoEnvironment=signal(localStorage.getItem('flujo-auto-environment')==='yes');
   clientFilter='';projectFilter='';entryQuery='';entryClient='';entryProject='';entryCategory='';entryTag='';entryType='';archived=false;
   activeKind:'note'|'library'|'diagram'='note'; selectedEntry=signal<Entry|null>(null); entryMedia=signal<Media[]>([]);
-  entryDraft={title:'',color:'yellow',pinned:false,archived:false,client_id:'',project_id:'',category:'',tags:''};
+  entryDraft={title:'',color:'yellow',pinned:false,archived:false,client_id:'',project_id:'',category:'',tags:'',visibility:'private' as 'private'|'workspace'|'shared',shares:[] as Share[]};
   colors=[['yellow','Amarillo'],['blue','Azul'],['green','Verde'],['red','Rojo'],['purple','Morado'],['gray','Gris']];
   catalogKind:'clients'|'projects'='clients';catalogId:number|null=null;catalogDraft={name:'',code:'',description:'',client_id:''};catalogModal=signal(false);
   moveTask=signal<Task|null>(null);moveEnvironment='local';moveStatus='development';dragOver=signal('');
   previewMedia=signal<Media|null>(null);
-  nav=[['dashboard','grid','Inicio'],['board','columns','Tablero'],['notes','note','Notas importantes'],['library','folder','Biblioteca'],['diagrams','layers','Diagramas']];
+  nav=[['dashboard','grid','Inicio'],['board','columns','Tablero'],['bugs','spark','Bugs'],['notes','note','Notas importantes'],['library','folder','Biblioteca'],['diagrams','layers','Diagramas']];
   management=[['clients','users','Clientes'],['projects','layers','Proyectos'],['history','history','Historial']];
-  pageNames:Record<string,string>={dashboard:'Inicio',board:'Tablero',notes:'Notas importantes',library:'Biblioteca',clients:'Clientes',projects:'Proyectos',history:'Historial',diagrams:'Diagramas',users:'Usuarios',spaces:'Espacios',reading:'Lectura',taskreading:'Lectura de tarea',settings:'Preferencias',detail:'Requerimiento',entry:'Editor'};
+  pageNames:Record<string,string>={dashboard:'Inicio',board:'Tablero',bugs:'Bugs',notes:'Notas importantes',library:'Biblioteca',clients:'Clientes',projects:'Proyectos',history:'Historial',diagrams:'Diagramas',users:'Usuarios',spaces:'Espacios',reading:'Lectura',taskreading:'Lectura de tarea',settings:'Preferencias',detail:'Requerimiento',entry:'Editor'};
   get currentTitle(){return this.pageNames[this.view()]||'Mi espacio';}
   allowedStatuses(env:string){return this.statuses.filter(s=>env==='certification'?s[0]==='review':['qa','production'].includes(env)?['review','done'].includes(s[0]):true);}
   defaultStatus(env:string,wanted='development'){return this.allowedStatuses(env).some(s=>s[0]===wanted)?wanted:'review';}
@@ -73,7 +76,8 @@ export class AppComponent implements OnInit {
   clientName(id?:number|null){const c=this.clients().find(c=>c.id===id);return c?c.name+(c.code?' · '+c.code:''):'General';}
   projectName(id?:number|null){return this.projects().find(c=>c.id===id)?.name||'';}
   projectOptions(client:string){return this.projects().filter(p=>String(p.client_id||'')===client);}
-  visibleTasks(){const q=this.query.toLocaleLowerCase();return this.tasks().filter(t=>(!this.environment||t.environment===this.environment)&&(!this.clientFilter||String(t.client_id)===this.clientFilter)&&(!this.projectFilter||String(t.project_id)===this.projectFilter)&&(!q||(t.title+' '+(t.description||'')+' '+this.clientName(t.client_id)).toLocaleLowerCase().includes(q)));}
+  visibleTasks(){const q=this.query.toLocaleLowerCase();return this.tasks().filter(t=>(!this.environment||t.environment===this.environment)&&(!this.clientFilter||String(t.client_id)===this.clientFilter)&&(!this.projectFilter||String(t.project_id)===this.projectFilter)&&(!this.taskTag||(t.tags||[]).includes(this.taskTag))&&(!q||(t.title+' '+(t.description||'')+' '+(t.tags||[]).join(' ')+' '+this.clientName(t.client_id)).toLocaleLowerCase().includes(q)));}
+  taskTags(){return [...new Set(this.tasks().flatMap(t=>t.tags||[]))].sort();}
   visibleEntries(){const q=this.entryQuery.toLocaleLowerCase();const list=this.view()==='library'?this.library():this.view()==='diagrams'?this.diagrams():this.notes();return list.filter(e=>(!q||(e.title+' '+e.search_text+' '+e.tags.join(' ')).toLocaleLowerCase().includes(q))&&(!this.entryClient||String(e.client_id)===this.entryClient)&&(!this.entryProject||String(e.project_id)===this.entryProject)&&(!this.entryCategory||e.category===this.entryCategory)&&(!this.entryTag||e.tags.includes(this.entryTag))&&(!this.entryType||e.media.some(m=>this.fileType(m)===this.entryType)));}
   fileType(m:Media){return m.mime.startsWith('image/')?'image':m.mime==='application/pdf'?'pdf':m.name.toLowerCase().endsWith('.sql')?'sql':m.name.toLowerCase().endsWith('.zip')?'archive':'document';}
   firstImage(e:Entry){return e.blocks.find(b=>b.type==='image')?.media_id;}
@@ -92,22 +96,22 @@ export class AppComponent implements OnInit {
   async navigate(page:string){
     if(this.busy()||this.pageLoading()||this.uploadBusy()||this.attachmentBusy())return;
     this.mobileOpen.set(false);this.error.set('');this.notice.set('');this.view.set(page);this.pageLoading.set(true);window.scrollTo(0,0);
-    try{if(page==='dashboard')await this.loadWorkspace();if(page==='board')await this.loadTasks();if(['notes','library','diagrams'].includes(page)){this.archived=false;await this.loadEntries(this.kindForView());}if(page==='history')await this.loadHistory();if(page==='users')await this.loadUsers();}finally{this.pageLoading.set(false);}
+    try{if(page==='dashboard')await this.loadWorkspace();if(page==='board'||page==='bugs')await this.loadTasks();if(['notes','library','diagrams'].includes(page)){this.archived=false;await this.loadEntries(this.kindForView());}if(page==='history')await this.loadHistory();if(page==='users')await this.loadUsers();}finally{this.pageLoading.set(false);}
   }
   kindForView():'note'|'library'|'diagram'{return this.view()==='notes'?'note':this.view()==='diagrams'?'diagram':'library';}
   entryList(){return this.activeKind==='note'?'notes':this.activeKind==='diagram'?'diagrams':'library';}
   async toggleArchiveView(){if(this.pageLoading())return;this.archived=!this.archived;this.pageLoading.set(true);try{await this.loadEntries(this.kindForView());}finally{this.pageLoading.set(false);}}
   async filterEntries(){await this.loadEntries(this.kindForView());}
-  newEntry(kind:'note'|'library'|'diagram'){if(!this.canEdit()||this.busy()||this.pageLoading())return;this.entryDiagram=emptyDiagram();this.activeKind=kind;this.selectedEntry.set(null);this.entryDraft={title:'',color:kind==='note'?'yellow':'blue',pinned:false,archived:false,client_id:'',project_id:'',category:'',tags:''};this.entryBlocks=[{type:'text',text:''}];this.entryMedia.set([]);this.view.set('entry');this.notice.set('');this.error.set('');this.mobileOpen.set(false);}
-  openEntry(e:Entry){this.entryDiagram=structuredClone(e.diagram||emptyDiagram());this.activeKind=e.kind;this.selectedEntry.set(e);this.entryDraft={title:e.title,color:e.color,pinned:e.pinned,archived:e.archived,client_id:e.client_id?String(e.client_id):'',project_id:e.project_id?String(e.project_id):'',category:e.category||'',tags:e.tags.join(', ')};this.entryBlocks=structuredClone(e.blocks.length?e.blocks:[{type:'text',text:''}]);this.entryMedia.set([...e.media]);this.view.set(this.defaultEdit()&&this.canEdit()?'entry':'reading');this.error.set('');this.notice.set('');window.scrollTo(0,0);}
-  async saveEntry(){if(this.busy()||this.uploadBusy()||this.attachmentBusy())return;this.busy.set(true);this.error.set('');try{
+  async newEntry(kind:'note'|'library'|'diagram'){if(!this.canEdit()||this.busy()||this.pageLoading())return;this.entryDiagram=emptyDiagram();this.activeKind=kind;this.selectedEntry.set(null);this.entryDraft={title:'',color:kind==='note'?'yellow':'blue',pinned:false,archived:false,client_id:'',project_id:'',category:'',tags:'',visibility:'private',shares:[]};this.entryBlocks=[{type:'text',text:''}];this.entryMedia.set([]);if(kind==='diagram')await this.loadMembers();this.view.set('entry');this.notice.set('');this.error.set('');this.mobileOpen.set(false);}
+  async openEntry(e:Entry){this.entryDiagram=structuredClone(e.diagram||emptyDiagram());this.activeKind=e.kind;this.selectedEntry.set(e);this.entryDraft={title:e.title,color:e.color,pinned:e.pinned,archived:e.archived,client_id:e.client_id?String(e.client_id):'',project_id:e.project_id?String(e.project_id):'',category:e.category||'',tags:e.tags.join(', '),visibility:e.visibility||'workspace',shares:[...(e.shares||[])]};this.entryBlocks=structuredClone(e.blocks.length?e.blocks:[{type:'text',text:''}]);this.entryMedia.set([...e.media]);if(e.kind==='diagram'&&e.can_edit)await this.loadMembers();this.view.set(this.defaultEdit()&&this.canEditEntry(e)?'entry':'reading');this.error.set('');this.notice.set('');window.scrollTo(0,0);}
+  async saveEntry(auto=false){if(this.busy()||this.uploadBusy()||this.attachmentBusy())return;this.busy.set(true);if(auto)this.autosaveState.set('saving');this.error.set('');try{
     const oldImages=new Set(this.selectedEntry()?.blocks.filter(b=>b.type==='image').map(b=>b.media_id)||[]);
     const currentImages=new Set(this.entryBlocks.filter(b=>b.type==='image').map(b=>b.media_id));
     const attachment_ids=this.entryMedia().filter(m=>!oldImages.has(m.id)||currentImages.has(m.id)).map(m=>m.id);
     const payload={...this.entryDraft,kind:this.activeKind,client_id:this.entryDraft.client_id||null,project_id:this.entryDraft.project_id||null,tags:this.entryDraft.tags.split(',').map(t=>t.trim()).filter(Boolean),blocks:this.entryBlocks,...(this.activeKind==='diagram'?{diagram:this.entryDiagram}:{}),attachment_ids};
     const id=this.selectedEntry()?.id;
     const result=await firstValueFrom(id?this.http.put<Entry>('/api/entries/'+id,payload):this.http.post<Entry>('/api/entries',payload));
-    this.selectedEntry.set(result);this.entryMedia.set(result.media);this.notice.set('Guardado. Tus notas y archivos están al día.');await this.loadEntries(this.activeKind);
+    this.selectedEntry.set(result);this.entryMedia.set(result.media);this.autosaveSnapshot=this.currentAutosaveSnapshot();if(auto)this.autosaveState.set('saved');else{this.notice.set('Guardado. Tus notas y archivos están al día.');await this.loadEntries(this.activeKind);}
   }catch(e){this.showError(e);}finally{this.busy.set(false);}}
   async updateEntry(e:Entry,change:Partial<Entry>){if(this.busy())return;this.busy.set(true);this.error.set('');try{await firstValueFrom(this.http.put('/api/entries/'+e.id,{...e,...change,attachment_ids:e.media.map(m=>m.id)}));await this.loadEntries(e.kind);}catch(err){this.showError(err);}finally{this.busy.set(false);}}
   async deleteEntry(){const e=this.selectedEntry();if(!e||this.busy()||!confirm('¿Eliminar esta entrada y sus archivos? No se puede deshacer.'))return;this.busy.set(true);try{await firstValueFrom(this.http.delete('/api/entries/'+e.id));this.view.set(this.entryList());await this.loadEntries(e.kind);this.notice.set('Entrada eliminada.');}catch(err){this.showError(err);}finally{this.busy.set(false);}}
@@ -122,12 +126,16 @@ export class AppComponent implements OnInit {
   async dropTask(event:DragEvent,key:string){event.preventDefault();this.dragOver.set('');const id=Number(event.dataTransfer?.getData('application/x-flujo-task'));const task=this.tasks().find(t=>t.id===id);if(!task||this.busy())return;if(this.groupBy()==='status'){await this.move(task,key);return;}if(task.environment===key)return;this.moveEnvironment=key;this.moveStatus=this.defaultStatus(key);if(this.autoEnvironment())await this.performMove(task,key,this.defaultStatus(key));else this.moveTask.set(task);}
   showMove(task:Task){this.moveTask.set(task);this.moveEnvironment=task.environment;this.moveStatus=task.status;}
   async confirmMove(){const task=this.moveTask();if(task)await this.performMove(task,this.moveEnvironment,this.moveStatus);}
-  async performMove(task:Task,environment:string,status:string){if(this.busy())return;this.busy.set(true);this.error.set('');try{await firstValueFrom(this.http.patch('/api/tasks/'+task.id+'/move',{environment,status}));this.moveTask.set(null);await this.loadTasks();this.notice.set('Tarea movida a '+this.environmentLabels[environment]+'.');}catch(e){this.showError(e);}finally{this.busy.set(false);}}
+  async performMove(task:Task,environment:string,status:string){if(this.busy())return;this.busy.set(true);this.error.set('');try{const result=await firstValueFrom(this.http.patch<Task>('/api/tasks/'+task.id+'/move',{environment,status}));this.moveTask.set(null);await this.loadTasks();this.notice.set(result.notification==='sent'?'Tarea movida y correo enviado.':result.notification==='failed'?'Tarea movida, pero falló el envío del correo.':'Tarea movida a '+this.environmentLabels[environment]+'.');}catch(e){this.showError(e);}finally{this.busy.set(false);}}
 
   spaces=signal<Space[]>([]);spaceId=signal(0);pageLoading=signal(false);private generation=0;
-  diagrams=signal<Entry[]>([]);entryDiagram:Diagram=emptyDiagram();fullscreen=signal(false);
+  diagrams=signal<Entry[]>([]);entryDiagram:Diagram=emptyDiagram();fullscreen=signal(false);members=signal<Member[]>([]);
   defaultEdit=signal(localStorage.getItem('nexo-default-edit')==='yes');
   canEdit=computed(()=>this.user()?.role!=='reader');isAdmin=computed(()=>this.user()?.role==='admin');
+  canEditEntry(entry:Entry|null=this.selectedEntry()){return !!this.canEdit()&&(!entry||entry.kind!=='diagram'||entry.can_edit!==false);}
+  async loadMembers(){try{this.members.set(await firstValueFrom(this.http.get<Member[]>('/api/members')));}catch(e){this.showError(e);}}
+  sharePermission(id:number){return this.entryDraft.shares.find(s=>s.user_id===id)?.permission||'';}
+  setShare(id:number,permission:string){this.entryDraft.shares=this.entryDraft.shares.filter(s=>s.user_id!==id);if(permission)this.entryDraft.shares.push({user_id:id,permission:permission as 'view'|'edit'});}
   users=signal<User[]>([]);userModal=signal(false);editingUser:number|null=null;
   userDraft={name:'',email:'',password:'',role:'editor',workspace_ids:[] as number[]};
   spaceModal=signal(false);editingSpace:number|null=null;spaceDraft={name:'',color:'blue'};
@@ -146,12 +154,15 @@ export class AppComponent implements OnInit {
   async saveUser(){if(this.busy())return;this.busy.set(true);try{const payload={...this.userDraft,password:this.userDraft.password||null};await firstValueFrom(this.editingUser?this.http.put('/api/users/'+this.editingUser,payload):this.http.post('/api/users',payload));this.userModal.set(false);this.userDraft.password='';await this.loadUsers();this.notice.set('Usuario guardado. Solo podrá acceder a los espacios que le asignaste.');}catch(e){this.showError(e);}finally{this.busy.set(false);}}
   readEntry(){const e=this.selectedEntry();if(e){this.openEntry(e);this.view.set('reading');}}
 
+  private currentAutosaveSnapshot(){return JSON.stringify(this.view()==='detail'?{draft:this.draft,blocks:this.taskBlocks}:this.view()==='entry'?{draft:this.entryDraft,blocks:this.entryBlocks,diagram:this.entryDiagram,media:this.entryMedia().map(m=>m.id)}:{});}
+  private async autosaveTick(){if(this.busy()||this.uploadBusy()||this.attachmentBusy()||!['detail','entry'].includes(this.view()))return;if(this.view()==='detail'&&!this.selected())return;if(this.view()==='entry'&&!this.selectedEntry())return;const title=this.view()==='detail'?this.draft.title:this.entryDraft.title;if(!title.trim())return;const snapshot=this.currentAutosaveSnapshot();if(!this.autosaveSnapshot){this.autosaveSnapshot=snapshot;return;}if(snapshot===this.autosaveSnapshot)return;this.view()==='detail'?await this.save(true):await this.saveEntry(true);}
+
   async ngOnInit() {
     this.initializeTheme();
     try {
       const result = await firstValueFrom(this.http.get<{user: User | null}>('/api/session'));
       this.user.set(result.user);
-      if (result.user) await this.initializeSpaces();
+      if (result.user) await this.initializeSpaces();this.autosaveTimer=setInterval(()=>this.autosaveTick(),1800);
     } catch (e) { this.showError(e); } finally { this.ready.set(true); }
   }
   private showError(e: unknown) {
@@ -203,9 +214,12 @@ export class AppComponent implements OnInit {
   complete(task: Task) { return (task.checklist || []).filter(step => step.done).length; }
   overdue(task: Task) { return !!task.due_date && task.status !== 'done' && task.due_date.slice(0, 10) < [new Date().getFullYear(), String(new Date().getMonth() + 1).padStart(2, '0'), String(new Date().getDate()).padStart(2, '0')].join('-'); }
   taskCode(id: number) { return `NX-${String(id).padStart(3, '0')}`; }
-  newTask(status = 'pending') {
+  bugCode(id:number){return `BUG-${String(id).padStart(3,'0')}`;}
+  bugsBy(statuses:string[]){const q=this.query.toLocaleLowerCase();return this.tasks().filter(t=>(t.task_type||'task')==='bug'&&statuses.includes(t.status)&&(!this.taskTag||(t.tags||[]).includes(this.taskTag))&&(!q||(t.title+' '+(t.description||'')+' '+(t.tags||[]).join(' ')).toLocaleLowerCase().includes(q)));}
+  newBug(){this.newTask('pending','bug');}
+  newTask(status = 'pending',type:'task'|'bug'='task') {
     if(!this.canEdit()||this.pageLoading())return;
-    this.selected.set(null); this.draft = {...this.emptyDraft(), status: this.groupBy()==='status'?status:'pending', environment:this.groupBy()==='environment'&&this.environmentLabels[status]?status:'local'}; this.taskBlocks=[{type:'text',text:''}]; this.draft.status=this.defaultStatus(this.draft.environment,this.draft.status); this.files = []; this.view.set('detail'); this.error.set(''); this.notice.set(''); window.scrollTo(0, 0);
+    this.selected.set(null); this.draft = {...this.emptyDraft(),task_type:type, status: this.groupBy()==='status'?status:'pending', environment:this.groupBy()==='environment'&&this.environmentLabels[status]?status:'local'}; this.taskBlocks=[{type:'text',text:''}]; this.draft.status=this.defaultStatus(this.draft.environment,this.draft.status); this.files = []; this.view.set('detail'); this.error.set(''); this.notice.set(''); window.scrollTo(0, 0);
   }
   async openTask(task: Task) {
     if (this.busy()) return;
@@ -215,7 +229,8 @@ export class AppComponent implements OnInit {
       const full = await firstValueFrom(this.http.get<Task>(`/api/tasks/${task.id}`));
       this.selected.set(full);
       this.taskBlocks=full.notes_blocks?.length ? structuredClone(full.notes_blocks) : [{type:'text',text:''}];
-      this.draft = {is_fire:!!full.is_fire,client_id:full.client_id?String(full.client_id):'', project_id:full.project_id?String(full.project_id):'', sql_notes:full.sql_notes||'', title: full.title, description: full.description || '', status: full.status, environment: full.environment, priority: full.priority, checklist_text: (full.checklist || []).map(s => s.text).join('\n')};
+      const fields=full.notification_fields||['title','code','status'];
+      this.draft = {task_type:full.task_type||'task',tags:(full.tags||[]).join(', '),is_fire:!!full.is_fire,notify_on_production:!!full.notify_on_production,notify_emails:(full.notify_emails||[]).join(', '),notification_message:full.notification_message||'Hola, la tarea ya quedó completada y disponible en Producción.',notify_include_client:fields.includes('client'),notify_include_project:fields.includes('project'),notify_include_title:fields.includes('title'),notify_include_description:fields.includes('description'),notify_include_code:fields.includes('code'),notify_include_status:fields.includes('status'),notify_include_checklist:fields.includes('checklist'),client_id:full.client_id?String(full.client_id):'', project_id:full.project_id?String(full.project_id):'', sql_notes:full.sql_notes||'', title: full.title, description: full.description || '', status: full.status, environment: full.environment, priority: full.priority, checklist_text: (full.checklist || []).map(s => s.text).join('\n')};
       this.files = []; this.view.set(this.defaultEdit()&&this.canEdit()?'detail':'taskreading'); this.loadHistory(task.id); window.scrollTo(0, 0);
     } catch (e) { this.showError(e); } finally { this.busy.set(false);this.pageLoading.set(false); }
   }
@@ -227,9 +242,9 @@ export class AppComponent implements OnInit {
       this.error.set('Selecciona hasta 8 archivos de máximo 10 MB cada uno.'); this.files = []; input.value = '';
     }
   }
-  async save() {
+  async save(auto=false) {
     if (this.busy() || this.uploadBusy()) return;
-    this.busy.set(true); this.error.set(''); this.notice.set('');
+    this.busy.set(true); if(auto)this.autosaveState.set('saving');this.error.set(''); if(!auto)this.notice.set('');
     const data = new FormData();
     Object.entries(this.draft).forEach(([key, value]) => data.append(key, typeof value==='boolean'?(value?'1':'0'):value));
     this.files.forEach(file => data.append('files[]', file));
@@ -240,13 +255,13 @@ export class AppComponent implements OnInit {
       const task = await firstValueFrom(this.http.post<Task>(id ? `/api/tasks/${id}` : '/api/tasks', data));
       this.selected.set(task); this.files = [];
       const input = document.getElementById('files') as HTMLInputElement | null; if (input) input.value = '';
-      this.notice.set(id ? 'Cambios guardados.' : 'Tarea creada. Ya puedes marcar tus pasos de entrega.');
+      this.autosaveSnapshot=this.currentAutosaveSnapshot();if(auto)this.autosaveState.set('saved');else this.notice.set(task.notification==='sent'?'Tarea guardada y correo enviado.':task.notification==='failed'?'Tarea guardada, pero el correo no pudo enviarse. Revisa la configuración SMTP.':id?'Cambios guardados.':'Tarea creada. Ya puedes marcar tus pasos de entrega.');
     } catch (e) { this.showError(e); } finally { this.busy.set(false); }
   }
   async move(task: Task, status: string) {
     if (this.busy() || status === task.status) return;
     this.busy.set(true); this.error.set('');
-    try { if(!this.allowedStatuses(task.environment).some(s=>s[0]===status)){this.error.set('Ese estado no está disponible en '+this.environmentLabels[task.environment]+'. Cambia primero el ambiente.');return;} await firstValueFrom(this.http.patch(`/api/tasks/${task.id}/status`, {status})); await this.loadTasks(); this.notice.set('Estado actualizado.'); }
+    try { if(!this.allowedStatuses(task.environment).some(s=>s[0]===status)){this.error.set('Ese estado no está disponible en '+this.environmentLabels[task.environment]+'. Cambia primero el ambiente.');return;} const result=await firstValueFrom(this.http.patch<Task>(`/api/tasks/${task.id}/status`, {status})); await this.loadTasks(); this.notice.set(result.notification==='sent'?'Estado actualizado y correo enviado.':result.notification==='failed'?'Estado actualizado, pero falló el envío del correo.':'Estado actualizado.'); }
     catch (e) { this.showError(e); } finally { this.busy.set(false); }
   }
   async toggleStep(index: number) {

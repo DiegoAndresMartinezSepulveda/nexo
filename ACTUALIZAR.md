@@ -11,7 +11,11 @@ Nexo conserva la estructura de instalación existente: la carpeta privada sigue 
 - Clientes con código interno editable y proyectos por espacio.
 - Administrador, editores y lectores. Solo el administrador crea usuarios y asigna espacios.
 - Lectura por defecto, botón Editar, lectura ampliada y preferencia para abrir en edición.
-- Diagramas con procesos, decisiones, conexiones y pasos movibles; exportación PNG/PDF.
+- Pizarra con zoom, desplazamiento, figuras, texto, notas, dibujo libre, conexiones, colores, listas, plantillas y pegado de imágenes; exportación PNG/PDF.
+- Privacidad de diagramas: solo yo, todo el espacio o personas específicas con permiso para ver o editar.
+- Vista de bugs con estados, prioridades, etiquetas y el mismo editor ordenado de las tareas.
+- Autoguardado de tareas, notas, biblioteca y diagramas existentes mientras editas.
+- Aviso opcional por correo al completar una tarea en Producción, con destinatarios, mensaje y campos de la tarjeta elegidos por ti.
 - Avisos flotantes y pantallas de carga al cambiar de contexto.
 - Fecha límite retirada de la interfaz. Los valores antiguos se conservan en la base.
 - Incendio: marca independiente de la prioridad, con tarjeta roja.
@@ -113,7 +117,7 @@ El script usa PHP 8.2, instala dependencias con Composer, ejecuta migraciones, c
 
 ## Guardado de notas y archivos
 
-El contenido se guarda al pulsar Guardar. Las imágenes se suben de forma privada al pegar o elegir el archivo y se asocian a la tarea/nota al guardar. Los archivos de borradores abandonados se pueden limpiar después de 24 horas:
+Las tareas, notas, biblioteca y diagramas ya guardados se autoguardan mientras los editas. Para crear un elemento nuevo se pulsa Guardar la primera vez. Las imágenes se suben de forma privada al pegar o elegir el archivo y se asocian a la tarea/nota al guardar. Los archivos de borradores abandonados se pueden limpiar después de 24 horas:
 
 ```bash
 /opt/alt/php82/usr/bin/php artisan flujo:limpiar-archivos
@@ -131,3 +135,22 @@ La configuración visual se recuerda por navegador. No hay sincronización en ti
 - Los PDF de diagramas se ajustan a una página A4, con fondo blanco. Exportar no guarda cambios pendientes: pulsa Guardar diagrama para persistirlos en Nexo.
 
 Las cuentas no incluyen recuperación de contraseña por correo. Un administrador puede reemplazar la contraseña de un colaborador desde Usuarios. Para la cuenta principal, conserva tu acceso SSH.
+
+## Avisos por Gmail
+
+En cada tarea puedes activar el aviso de Producción, escribir el mensaje, elegir uno o varios destinatarios y marcar qué datos incluir: cliente, proyecto, título, descripción, código, ambiente/estado y checklist. El correo se envía una sola vez cuando la tarea llega a **Producción · Completada**.
+
+Para enviarlo desde Gmail, activa la verificación en dos pasos de la cuenta de Google y crea una contraseña de aplicación. En el `.env` privado del servidor configura:
+
+```dotenv
+MAIL_MAILER=smtp
+MAIL_HOST=smtp.gmail.com
+MAIL_PORT=587
+MAIL_USERNAME=tu_cuenta@gmail.com
+MAIL_PASSWORD="tu_contraseña_de_aplicacion"
+MAIL_ENCRYPTION=tls
+MAIL_FROM_ADDRESS=tu_cuenta@gmail.com
+MAIL_FROM_NAME="${APP_NAME}"
+```
+
+Después ejecuta `/opt/alt/php82/usr/bin/php artisan config:clear`. La contraseña de aplicación debe permanecer únicamente en `.env`; no la agregues a Git ni al ZIP.

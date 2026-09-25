@@ -2,25 +2,30 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\{Task, Attachment};
-
-use Illuminate\Http\Request;
-
-use Illuminate\Support\Facades\{Auth, DB, Storage};
-
-use Illuminate\Validation\Rule;
-
-use App\Support\WorkspaceContent as Content;
-
+use App\Models\Attachment;
 use App\Models\Media;
+use App\Models\Task;
+use App\Support\Spaces;
+use App\Support\WorkspaceContent as Content;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
-class WorkspaceController extends Controller {
-
-    public function login(Request $r) {
+class WorkspaceController extends Controller
+{
+    public function login(Request $r)
+    {
 
         $credentials = $r->validate(['email' => 'required|email', 'password' => 'required|string']);
 
-        if (!Auth::attempt($credentials)) throw \Illuminate\Validation\ValidationException::withMessages(['email' => 'El correo o la contraseña no coinciden.']);
+        if (! Auth::attempt($credentials)) {
+            throw ValidationException::withMessages(['email' => 'El correo o la contraseña no coinciden.']);
+        }
 
         $r->session()->regenerate();
 
@@ -28,19 +33,23 @@ class WorkspaceController extends Controller {
 
     }
 
-    public function logout(Request $r) {
+    public function logout(Request $r)
+    {
 
-        Auth::logout(); $r->session()->invalidate(); $r->session()->regenerateToken();
+        Auth::logout();
+        $r->session()->invalidate();
+        $r->session()->regenerateToken();
 
         return response()->noContent();
 
     }
 
-    public function index(Request $r) {
+    public function index(Request $r)
+    {
 
         $f = $r->validate(['q' => 'nullable|string|max:200', 'environment' => ['nullable', Rule::in(array_keys(Task::ENVIRONMENTS))]]);
 
-        $base = Task::where('workspace_id', \App\Support\Spaces::id());
+        $base = Task::where('workspace_id', Spaces::id());
 
         $counts = (clone $base)->selectRaw('status, count(*) as total')->groupBy('status')->pluck('total', 'status');
 
@@ -52,15 +61,24 @@ class WorkspaceController extends Controller {
 
     }
 
-    private function authorizeTask(Request $r, Task $task): void { abort_unless($task->workspace_id === \App\Support\Spaces::id(), 404); }
+    private function authorizeTask(Request $r, Task $task): void
+    {
+        abort_unless($task->workspace_id === Spaces::id(), 404);
+    }
 
-    public function edit(Request $r, Task $task) { $this->authorizeTask($r, $task); return response()->json($task->load('attachments')); }
+    public function edit(Request $r, Task $task)
+    {
+        $this->authorizeTask($r, $task);
 
-    private function save(Request $r, Task $task) {
+        return response()->json($task->load('attachments'));
+    }
+
+    private function save(Request $r, Task $task)
+    {
 
         $data = $r->validate(Content::rules($r->user()->id, 'notes_blocks') + [
 
-            'is_fire'=>'sometimes|boolean', 'sql_notes' => 'nullable|string|max:50000', 'title' => 'required|string|max:180', 'description' => 'nullable|string|max:20000',
+            'is_fire' => 'sometimes|boolean', 'task_type' => ['sometimes', Rule::in(['task', 'bug'])], 'sql_notes' => 'nullable|string|max:50000', 'title' => 'required|string|max:180', 'description' => 'nullable|string|max:20000',
 
             'status' => ['required', Rule::in(array_keys(Task::STATUSES))],
 
@@ -69,16 +87,21 @@ class WorkspaceController extends Controller {
             'priority' => ['required', Rule::in(array_keys(Task::PRIORITIES))],
 
             'due_date' => 'nullable|date_format:Y-m-d', 'checklist_text' => 'nullable|string|max:10000',
+            'notify_on_production' => 'sometimes|boolean', 'notify_emails' => 'nullable|string|max:2000', 'notification_message' => 'nullable|string|max:5000', 'tags' => 'nullable|string|max:1000',
+            'notify_include_client' => 'sometimes|boolean', 'notify_include_project' => 'sometimes|boolean', 'notify_include_title' => 'sometimes|boolean', 'notify_include_description' => 'sometimes|boolean', 'notify_include_code' => 'sometimes|boolean',
+            'notify_include_status' => 'sometimes|boolean', 'notify_include_checklist' => 'sometimes|boolean',
 
             'files' => 'nullable|array|max:8', 'files.*' => 'file|max:10240|mimes:jpg,jpeg,png,webp,gif,pdf,txt,csv,doc,docx,xls,xlsx,ppt,pptx,zip',
 
         ], ['title.required' => 'Escribe un título para la tarea.', 'files.*.max' => 'Cada archivo debe pesar como máximo 10 MB.', 'files.*.mimes' => 'Adjunta imágenes, PDF, documentos, texto o ZIP.']);
 
-        Content::validateProject(array_replace($task->only(['client_id','project_id']),$data));
+        Content::validateProject(array_replace($task->only(['client_id', 'project_id']), $data));
 
-        $this->validateState($data['environment'],$data['status']);
+        $this->validateState($data['environment'], $data['status']);
 
-        if (array_key_exists('notes_blocks', $data)) $data['notes_blocks'] = Content::blocks($data['notes_blocks']);
+        if (array_key_exists('notes_blocks', $data)) {
+            $data['notes_blocks'] = Content::blocks($data['notes_blocks']);
+        }
 
         $previous = collect($task->checklist ?? [])->keyBy('text');
 
@@ -86,17 +109,37 @@ class WorkspaceController extends Controller {
 
             ->map(fn ($s) => ['text' => $s, 'done' => (bool) ($previous->get($s)['done'] ?? false)])->all();
 
-        unset($data['checklist_text'], $data['files']); $paths = [];
+        $data['notify_emails'] = collect(preg_split('/[,;\s]+/u', $data['notify_emails'] ?? ''))->map(fn ($email) => mb_strtolower(trim($email)))->filter()->unique()->values()->all();
+        $data['tags'] = collect(explode(',', $data['tags'] ?? ''))->map(fn ($tag) => mb_substr(trim($tag), 0, 40))->filter()->unique()->take(20)->values()->all();
+        $data['notification_fields'] = collect(['client', 'project', 'title', 'description', 'code', 'status', 'checklist'])->filter(fn ($field) => (bool) ($data['notify_include_'.$field] ?? false))->values()->all();
+        foreach (['client', 'project', 'title', 'description', 'code', 'status', 'checklist'] as $field) {
+            unset($data['notify_include_'.$field]);
+        }
+        foreach ($data['notify_emails'] as $email) {
+            if (! filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                throw ValidationException::withMessages(['notify_emails' => 'Revisa los correos de notificación.']);
+            }
+        }
+        if (empty($data['notify_on_production'])) {
+            $data['notify_emails'] = [];
+        }
+        unset($data['checklist_text'], $data['files']);
+        $paths = [];
 
         try {
 
             DB::transaction(function () use ($r, $task, $data, &$paths) {
 
-                $new = !$task->exists;
+                $new = ! $task->exists;
 
-                $task->fill($data); $task->user_id ??= $r->user()->id; $task->workspace_id=\App\Support\Spaces::id(); $task->save();
+                $task->fill($data);
+                $task->user_id ??= $r->user()->id;
+                $task->workspace_id = Spaces::id();
+                $task->save();
 
-                if (array_key_exists('notes_blocks', $data)) Content::bind($r->user()->id, 'task_id', $task->id, $data['notes_blocks']);
+                if (array_key_exists('notes_blocks', $data)) {
+                    Content::bind($r->user()->id, 'task_id', $task->id, $data['notes_blocks']);
+                }
 
                 Content::log($r->user()->id, $new ? 'Creado' : 'Actualizado', 'task', $task->id, $task->title);
 
@@ -104,7 +147,9 @@ class WorkspaceController extends Controller {
 
                     $path = $file->store('attachments', 'local');
 
-                    if (!$path) throw new \RuntimeException('No se pudo guardar el archivo.');
+                    if (! $path) {
+                        throw new \RuntimeException('No se pudo guardar el archivo.');
+                    }
 
                     $paths[] = $path;
 
@@ -114,68 +159,151 @@ class WorkspaceController extends Controller {
 
             });
 
-        } catch (\Throwable $e) { Storage::disk('local')->delete($paths); throw $e; }
+        } catch (\Throwable $e) {
+            Storage::disk('local')->delete($paths);
+            throw $e;
+        }
 
-        return response()->json($task->load('attachments'), $task->wasRecentlyCreated ? 201 : 200);
+        $mail = $this->notifyProduction($task);
+
+        return response()->json($task->load('attachments')->setAttribute('notification', $mail), $task->wasRecentlyCreated ? 201 : 200);
 
     }
 
-    public function store(Request $r) { return $this->save($r, new Task); }
+    public function store(Request $r)
+    {
+        return $this->save($r, new Task);
+    }
 
-    public function update(Request $r, Task $task) { $this->authorizeTask($r, $task); return $this->save($r, $task); }
+    public function update(Request $r, Task $task)
+    {
+        $this->authorizeTask($r, $task);
 
-    public function status(Request $r, Task $task) {
+        return $this->save($r, $task);
+    }
 
-        $this->authorizeTask($r, $task); $data=$r->validate(['status' => ['required', Rule::in(array_keys(Task::STATUSES))]]);
+    public function status(Request $r, Task $task)
+    {
 
-        $this->validateState($task->environment,$data['status']); $task->update($data);
+        $this->authorizeTask($r, $task);
+        $data = $r->validate(['status' => ['required', Rule::in(array_keys(Task::STATUSES))]]);
+
+        $this->validateState($task->environment, $data['status']);
+        $task->update($data);
 
         Content::log($r->user()->id, 'Estado: '.Task::STATUSES[$task->status], 'task', $task->id, $task->title);
+        $task->setAttribute('notification', $this->notifyProduction($task));
 
         return response()->json($task);
 
     }
 
-    private function validateState(string $environment, string $status): void {
+    private function validateState(string $environment, string $status): void
+    {
 
-        if (!in_array($status,Task::allowedStatuses($environment))) throw \Illuminate\Validation\ValidationException::withMessages(['status'=>'Ese estado no corresponde al ambiente seleccionado. Certificación usa revisión; QA y Producción usan revisión o completada.']);
+        if (! in_array($status, Task::allowedStatuses($environment))) {
+            throw ValidationException::withMessages(['status' => 'Ese estado no corresponde al ambiente seleccionado. Certificación usa revisión; QA y Producción usan revisión o completada.']);
+        }
 
     }
 
-    public function move(Request $r, Task $task) {
+    public function move(Request $r, Task $task)
+    {
 
-        $this->authorizeTask($r,$task);
+        $this->authorizeTask($r, $task);
 
-        $data=$r->validate(['status'=>['required',Rule::in(array_keys(Task::STATUSES))],'environment'=>['required',Rule::in(array_keys(Task::ENVIRONMENTS))]]);
+        $data = $r->validate(['status' => ['required', Rule::in(array_keys(Task::STATUSES))], 'environment' => ['required', Rule::in(array_keys(Task::ENVIRONMENTS))]]);
 
-        $this->validateState($data['environment'],$data['status']);
+        $this->validateState($data['environment'], $data['status']);
 
-        DB::transaction(function()use($r,$task,$data){ $task->update($data); Content::log($r->user()->id,'Movida a '.Task::ENVIRONMENTS[$task->environment].' · '.Task::STATUSES[$task->status],'task',$task->id,$task->title); });
+        DB::transaction(function () use ($r, $task, $data) {
+            $task->update($data);
+            Content::log($r->user()->id, 'Movida a '.Task::ENVIRONMENTS[$task->environment].' · '.Task::STATUSES[$task->status], 'task', $task->id, $task->title);
+        });
+
+        $task->setAttribute('notification', $this->notifyProduction($task));
 
         return response()->json($task);
 
     }
 
-    public function checklist(Request $r, Task $task) {
+    private function notifyProduction(Task $task): string
+    {
+        if (! $task->notify_on_production || $task->environment !== 'production' || $task->status !== 'done' || $task->production_notified_at || empty($task->notify_emails)) {
+            return 'not_requested';
+        }
+        try {
+            $title = $task->title;
+            $code = 'NX-'.str_pad((string) $task->id, 3, '0', STR_PAD_LEFT);
+            $fields = $task->notification_fields ?? ['title', 'code', 'status'];
+            $intro = trim($task->notification_message ?: 'Hola, la tarea quedó completada en Producción.');
+            $details = [];
+            if (in_array('client', $fields, true) && $task->client_id) {
+                $client = DB::table('clients')->where('workspace_id', $task->workspace_id)->where('id', $task->client_id)->first();
+                if ($client) {
+                    $details[] = 'Cliente: '.$client->name.($client->code ? ' · '.$client->code : '');
+                }
+            }
+            if (in_array('project', $fields, true) && $task->project_id) {
+                $project = DB::table('projects')->where('workspace_id', $task->workspace_id)->where('id', $task->project_id)->first();
+                if ($project) {
+                    $details[] = 'Proyecto: '.$project->name;
+                }
+            }
+            if (in_array('code', $fields, true)) {
+                $details[] = "Código: {$code}";
+            }
+            if (in_array('title', $fields, true)) {
+                $details[] = "Tarea: {$title}";
+            }
+            if (in_array('description', $fields, true) && filled($task->description)) {
+                $details[] = "Descripción:\n{$task->description}";
+            }
+            if (in_array('status', $fields, true)) {
+                $details[] = "Ambiente: Producción\nEstado: Completada";
+            }
+            if (in_array('checklist', $fields, true) && count($task->checklist ?? [])) {
+                $details[] = "Checklist:\n".collect($task->checklist)->map(fn ($step) => (($step['done'] ?? false) ? '☑' : '☐').' '.($step['text'] ?? ''))->join("\n");
+            }
+            $body = $intro.(count($details) ? "\n\n".implode("\n\n", $details) : '')."\n\nEste aviso fue enviado automáticamente por Nexo.";
+            Mail::raw($body, fn ($message) => $message->to($task->notify_emails)->subject("Producción completada: {$title}"));
+            $task->forceFill(['production_notified_at' => now()])->saveQuietly();
+            Content::log($task->user_id, 'Correo de producción enviado', 'task', $task->id, $task->title);
 
-        $this->authorizeTask($r, $task); $data = $r->validate(['index' => 'required|integer|min:0', 'done' => 'required|boolean']);
+            return 'sent';
+        } catch (\Throwable $e) {
+            Log::error('No se pudo enviar la notificación de producción', ['task_id' => $task->id, 'error' => $e->getMessage()]);
+
+            return 'failed';
+        }
+    }
+
+    public function checklist(Request $r, Task $task)
+    {
+
+        $this->authorizeTask($r, $task);
+        $data = $r->validate(['index' => 'required|integer|min:0', 'done' => 'required|boolean']);
 
         DB::transaction(function () use ($task, $data) {
 
-            $locked = Task::whereKey($task->id)->lockForUpdate()->firstOrFail(); $items = $locked->checklist ?? [];
+            $locked = Task::whereKey($task->id)->lockForUpdate()->firstOrFail();
+            $items = $locked->checklist ?? [];
 
             abort_unless(isset($items[$data['index']]), 404);
 
-            $items[$data['index']]['done'] = (bool) $data['done']; $locked->update(['checklist' => $items]);
+            $items[$data['index']]['done'] = (bool) $data['done'];
+            $locked->update(['checklist' => $items]);
 
         });
 
-        Content::log($r->user()->id,'Lista de entrega actualizada','task',$task->id,$task->title);
+        Content::log($r->user()->id, 'Lista de entrega actualizada', 'task', $task->id, $task->title);
+
         return response()->json($task->fresh()->load('attachments'));
 
     }
 
-    public function download(Request $r, Attachment $attachment) {
+    public function download(Request $r, Attachment $attachment)
+    {
 
         $this->authorizeTask($r, $attachment->task);
 
@@ -183,26 +311,36 @@ class WorkspaceController extends Controller {
 
     }
 
-    public function deleteAttachment(Request $r, Attachment $attachment) {
+    public function deleteAttachment(Request $r, Attachment $attachment)
+    {
 
-        $this->authorizeTask($r, $attachment->task); Content::log($r->user()->id,'Adjunto eliminado','task',$attachment->task_id,$attachment->task->title); Storage::disk('local')->delete($attachment->path); $attachment->delete();
+        $this->authorizeTask($r, $attachment->task);
+        Content::log($r->user()->id, 'Adjunto eliminado', 'task', $attachment->task_id, $attachment->task->title);
+        Storage::disk('local')->delete($attachment->path);
+        $attachment->delete();
 
         return response()->noContent();
 
     }
 
-    public function destroy(Request $r, Task $task) {
+    public function destroy(Request $r, Task $task)
+    {
 
         $this->authorizeTask($r, $task);
 
-        foreach ($task->attachments as $file) Storage::disk('local')->delete($file->path);
+        foreach ($task->attachments as $file) {
+            Storage::disk('local')->delete($file->path);
+        }
 
-        foreach (Media::where('task_id',$task->id)->get() as $media) Storage::disk('local')->delete($media->path);
+        foreach (Media::where('task_id', $task->id)->get() as $media) {
+            Storage::disk('local')->delete($media->path);
+        }
 
         Content::log($r->user()->id, 'Eliminado', 'task', $task->id, $task->title);
 
-        $task->delete(); return response()->noContent();
+        $task->delete();
+
+        return response()->noContent();
 
     }
-
 }
