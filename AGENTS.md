@@ -1,9 +1,12 @@
-# Nexo: conservar lo que el usuario ya aprobó
+# Nexo: proteger el funcionamiento interno y la instalación en Hostinger
 
 ## Regla principal
 
-El usuario pidió expresamente evitar cambios inesperados como los de la versión
-anterior. Modifica únicamente lo que pida en la tarea actual y lo estrictamente
+El usuario aclaró que su prioridad es evitar cambios internos que rompan el
+servidor, no congelar el diseño visual. Protege la estructura de instalación,
+el arranque de Laravel, las dependencias y la configuración de producción.
+Una mejora visual solicitada puede realizarse sin alterar esa base técnica.
+Modifica únicamente lo que pida en la tarea actual y lo estrictamente
 necesario para que funcione. Una petición de arreglar un error, publicar o mejorar
 algo puntual no autoriza a cambiar el resto de la aplicación.
 
@@ -49,6 +52,19 @@ sobrescribir configuraciones o datos que el usuario haya cambiado después.
 
 ## Datos e instalación
 
+- No cambiar por iniciativa propia rutas de instalación, puntos de entrada,
+  configuración de arranque, reglas `.htaccess`, conexión MySQL, sesiones,
+  versiones de PHP/Laravel ni el mecanismo de despliegue. No migrar el servidor
+  a SQLite ni introducir un proceso Node permanente: Hostinger sirve PHP y
+  Angular ya compilado. Los arreglos compatibles dentro de esta estructura
+  siguen permitidos cuando son necesarios para la tarea solicitada.
+- Si una tarea exige cambiar esa base técnica, explica antes el cambio concreto,
+  su impacto y cómo se recuperaría la instalación. Pide autorización si no está
+  ya incluida en la solicitud del usuario. Prepara y verifica primero una
+  solución local; no experimentes sobre la instalación en producción.
+- Usa `composer install` con `composer.lock` para desplegar las versiones
+  acordadas. No ejecutes `composer update` en producción ni cambies dependencias
+  como intento genérico de resolver un error.
 - Conservar `.env`, `APP_KEY`, cuentas, base de datos y archivos subidos.
   No incluir secretos ni datos privados en Git, documentación o paquetes.
 - Para actualizar tablas, usar migraciones incrementales. No ejecutar
@@ -61,6 +77,33 @@ sobrescribir configuraciones o datos que el usuario haya cambiado después.
   `public/app/`, que contiene Angular compilado.
 - No publicar en Hostinger ni sobrescribir una entrega existente por una petición
   que solo concierna a documentación o a una revisión local.
+
+## Verificación obligatoria de una actualización
+
+Los fallos observados durante esta instalación incluyeron `.env` ausente y
+`vendor/autoload.php` ausente. No fueron evidencia de contraseña incorrecta ni
+de que se estuviera usando SQLite. Diagnostica el error real antes de proponer
+cambios de credenciales o de base de datos.
+
+- Antes de dar instrucciones de actualización, identifica qué archivos ya tiene
+  el servidor y cuáles aporta el paquete. Nunca indiques reemplazar toda la
+  carpeta privada perdiendo `.env`, `storage` o los datos existentes.
+- En una entrega ZIP para Hostinger comprueba que estén `vendor/autoload.php`,
+  `public/app/index.html`, `public/.htaccess` y el adaptador de entrada. No incluyas
+  el `.env` real: la guía debe indicar expresamente conservar el del servidor.
+- Antes de ejecutar migraciones, comprueba la existencia de `.env` y
+  `vendor/autoload.php`, y que Artisan muestre su versión. No imprimas secretos
+  para comprobar la configuración.
+- Verifica resultados y códigos de salida. Un comando que no imprime nada no
+  demuestra éxito; no avances suponiendo que se ejecutó. Si PHP termina en
+  silencio, diagnostica con errores visibles en CLI, sin activar depuración
+  pública en la web.
+- Prueba migraciones en una base de prueba compatible con MySQL/MariaDB cuando
+  cambien el esquema o las consultas. Conserva los datos mediante migraciones
+  incrementales y prepara un respaldo antes de aplicarlas a producción.
+- Antes de declarar terminada una publicación, comprueba inicio de sesión,
+  carga de un espacio y acceso a sus datos. Distingue entre comprobación local,
+  comprobación del paquete y comprobación real del servidor.
 
 ## Forma de trabajar
 
