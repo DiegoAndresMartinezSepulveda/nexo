@@ -76,7 +76,7 @@ class WorkspaceController extends Controller
     private function save(Request $r, Task $task)
     {
 
-        $data = $r->validate(Content::rules($r->user()->id, 'notes_blocks') + [
+        $data = $r->validate(Content::rules($r->user()->id, 'notes_blocks') + Content::rules($r->user()->id, 'description_blocks') + [
 
             'is_fire' => 'sometimes|boolean', 'task_type' => ['sometimes', Rule::in(['task', 'bug'])], 'sql_notes' => 'nullable|string|max:50000', 'title' => 'required|string|max:180', 'description' => 'nullable|string|max:20000',
 
@@ -101,6 +101,10 @@ class WorkspaceController extends Controller
 
         if (array_key_exists('notes_blocks', $data)) {
             $data['notes_blocks'] = Content::blocks($data['notes_blocks']);
+        }
+        if (array_key_exists('description_blocks', $data)) {
+            $data['description_blocks'] = Content::blocks($data['description_blocks']);
+            $data['description'] = mb_substr(collect($data['description_blocks'])->pluck('text')->filter()->join("\n"), 0, 20000);
         }
 
         $previous = collect($task->checklist ?? [])->keyBy('text');
@@ -137,8 +141,8 @@ class WorkspaceController extends Controller
                 $task->workspace_id = Spaces::id();
                 $task->save();
 
-                if (array_key_exists('notes_blocks', $data)) {
-                    Content::bind($r->user()->id, 'task_id', $task->id, $data['notes_blocks']);
+                if (array_key_exists('notes_blocks', $data) || array_key_exists('description_blocks', $data)) {
+                    Content::bind($r->user()->id, 'task_id', $task->id, array_merge($data['description_blocks'] ?? $task->description_blocks ?? [], $data['notes_blocks'] ?? $task->notes_blocks ?? []));
                 }
 
                 Content::log($r->user()->id, $new ? 'Creado' : 'Actualizado', 'task', $task->id, $task->title);

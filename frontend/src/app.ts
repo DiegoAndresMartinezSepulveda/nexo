@@ -17,7 +17,7 @@ type User = {id: number; name: string; email: string;role:'admin'|'editor'|'read
 type Space={id:number;name:string;color:string};
 type Attachment = {id: number; name: string; size: number};
 type Step = {text: string; done: boolean};
-type Task = {task_type:'task'|'bug';tags?:string[];is_fire:boolean;notify_on_production:boolean;notify_emails?:string[];notification_message?:string;notification_fields?:string[];notification?:string;client_id?:number|null; project_id?:number|null; notes_blocks?:Block[]; sql_notes?:string|null; id: number; title: string; description: string | null; status: string; environment: string; priority: string; due_date: string | null; checklist: Step[]; attachments?: Attachment[]; attachments_count?: number; updated_at: string; created_at: string};
+type Task = {task_type:'task'|'bug';tags?:string[];is_fire:boolean;notify_on_production:boolean;notify_emails?:string[];notification_message?:string;notification_fields?:string[];notification?:string;client_id?:number|null; project_id?:number|null; notes_blocks?:Block[];description_blocks?:Block[]; sql_notes?:string|null; id: number; title: string; description: string | null; status: string; environment: string; priority: string; due_date: string | null; checklist: Step[]; attachments?: Attachment[]; attachments_count?: number; updated_at: string; created_at: string};
 type Draft = {task_type:'task'|'bug';tags:string;is_fire:boolean;notify_on_production:boolean;notify_emails:string;notification_message:string;notify_include_client:boolean;notify_include_project:boolean;notify_include_title:boolean;notify_include_description:boolean;notify_include_code:boolean;notify_include_status:boolean;notify_include_checklist:boolean;client_id:string; project_id:string; sql_notes:string; title: string; description: string; status: string; environment: string; priority: string; checklist_text: string};
 
 @Component({selector: 'app-root', standalone: true, imports: [CommonModule, FormsModule, NoteEditorComponent, ModalComponent, IconComponent, DiagramComponent, ReadingComponent], templateUrl: './workspace.html'})
@@ -52,7 +52,7 @@ export class AppComponent implements OnInit {
   clients=signal<Catalog[]>([]); projects=signal<Catalog[]>([]);
   notes=signal<Entry[]>([]); library=signal<Entry[]>([]); history=signal<Activity[]>([]); taskHistory=signal<Activity[]>([]);
   historyPage=1; historyLast=1;
-  taskBlocks:Block[]=[]; entryBlocks:Block[]=[];
+  taskBlocks:Block[]=[];taskDescriptionBlocks:Block[]=[]; entryBlocks:Block[]=[];
   uploadBusy=signal(false); attachmentBusy=signal(false);
   theme=signal(localStorage.getItem('flujo-theme')||'light'); collapsed=signal(localStorage.getItem('flujo-sidebar')==='collapsed'); mobileOpen=signal(false);
   groupBy=signal(localStorage.getItem('flujo-group')||'environment'); autoEnvironment=signal(localStorage.getItem('flujo-auto-environment')==='yes');
@@ -75,6 +75,7 @@ export class AppComponent implements OnInit {
   get pending(){return this.total()-(this.counts()['done']||0);}
   clientName(id?:number|null){const c=this.clients().find(c=>c.id===id);return c?c.name+(c.code?' · '+c.code:''):'General';}
   projectName(id?:number|null){return this.projects().find(c=>c.id===id)?.name||'';}
+  formattedDescription(task:Task):Block[]{return task.description_blocks?.length?task.description_blocks:[{type:'text',text:task.description||''}];}
   projectOptions(client:string){return this.projects().filter(p=>String(p.client_id||'')===client);}
   visibleTasks(){const q=this.query.toLocaleLowerCase();return this.tasks().filter(t=>(!this.environment||t.environment===this.environment)&&(!this.clientFilter||String(t.client_id)===this.clientFilter)&&(!this.projectFilter||String(t.project_id)===this.projectFilter)&&(!this.taskTag||(t.tags||[]).includes(this.taskTag))&&(!q||(t.title+' '+(t.description||'')+' '+(t.tags||[]).join(' ')+' '+this.clientName(t.client_id)).toLocaleLowerCase().includes(q)));}
   taskTags(){return [...new Set(this.tasks().flatMap(t=>t.tags||[]))].sort();}
@@ -154,7 +155,7 @@ export class AppComponent implements OnInit {
   async saveUser(){if(this.busy())return;this.busy.set(true);try{const payload={...this.userDraft,password:this.userDraft.password||null};await firstValueFrom(this.editingUser?this.http.put('/api/users/'+this.editingUser,payload):this.http.post('/api/users',payload));this.userModal.set(false);this.userDraft.password='';await this.loadUsers();this.notice.set('Usuario guardado. Solo podrá acceder a los espacios que le asignaste.');}catch(e){this.showError(e);}finally{this.busy.set(false);}}
   readEntry(){const e=this.selectedEntry();if(e){this.openEntry(e);this.view.set('reading');}}
 
-  private currentAutosaveSnapshot(){return JSON.stringify(this.view()==='detail'?{draft:this.draft,blocks:this.taskBlocks}:this.view()==='entry'?{draft:this.entryDraft,blocks:this.entryBlocks,diagram:this.entryDiagram,media:this.entryMedia().map(m=>m.id)}:{});}
+  private currentAutosaveSnapshot(){return JSON.stringify(this.view()==='detail'?{draft:this.draft,description:this.taskDescriptionBlocks,blocks:this.taskBlocks}:this.view()==='entry'?{draft:this.entryDraft,blocks:this.entryBlocks,diagram:this.entryDiagram,media:this.entryMedia().map(m=>m.id)}:{});}
   private async autosaveTick(){if(this.busy()||this.uploadBusy()||this.attachmentBusy()||!['detail','entry'].includes(this.view()))return;if(this.view()==='detail'&&!this.selected())return;if(this.view()==='entry'&&!this.selectedEntry())return;const title=this.view()==='detail'?this.draft.title:this.entryDraft.title;if(!title.trim())return;const snapshot=this.currentAutosaveSnapshot();if(!this.autosaveSnapshot){this.autosaveSnapshot=snapshot;return;}if(snapshot===this.autosaveSnapshot)return;this.view()==='detail'?await this.save(true):await this.saveEntry(true);}
 
   async ngOnInit() {
@@ -219,7 +220,7 @@ export class AppComponent implements OnInit {
   newBug(){this.newTask('pending','bug');}
   newTask(status = 'pending',type:'task'|'bug'='task') {
     if(!this.canEdit()||this.pageLoading())return;
-    this.selected.set(null); this.draft = {...this.emptyDraft(),task_type:type, status: this.groupBy()==='status'?status:'pending', environment:this.groupBy()==='environment'&&this.environmentLabels[status]?status:'local'}; this.taskBlocks=[{type:'text',text:''}]; this.draft.status=this.defaultStatus(this.draft.environment,this.draft.status); this.files = []; this.view.set('detail'); this.error.set(''); this.notice.set(''); window.scrollTo(0, 0);
+    this.selected.set(null); this.draft = {...this.emptyDraft(),task_type:type, status: this.groupBy()==='status'?status:'pending', environment:this.groupBy()==='environment'&&this.environmentLabels[status]?status:'local'};this.taskDescriptionBlocks=[{type:'text',text:''}]; this.taskBlocks=[{type:'text',text:''}]; this.draft.status=this.defaultStatus(this.draft.environment,this.draft.status); this.files = []; this.view.set('detail'); this.error.set(''); this.notice.set(''); window.scrollTo(0, 0);
   }
   async openTask(task: Task) {
     if (this.busy()) return;
@@ -228,6 +229,7 @@ export class AppComponent implements OnInit {
       this.pageLoading.set(true);this.selected.set(null);
       const full = await firstValueFrom(this.http.get<Task>(`/api/tasks/${task.id}`));
       this.selected.set(full);
+      this.taskDescriptionBlocks=full.description_blocks?.length ? structuredClone(full.description_blocks) : [{type:'text',text:full.description||''}];
       this.taskBlocks=full.notes_blocks?.length ? structuredClone(full.notes_blocks) : [{type:'text',text:''}];
       const fields=full.notification_fields||['title','code','status'];
       this.draft = {task_type:full.task_type||'task',tags:(full.tags||[]).join(', '),is_fire:!!full.is_fire,notify_on_production:!!full.notify_on_production,notify_emails:(full.notify_emails||[]).join(', '),notification_message:full.notification_message||'Hola, la tarea ya quedó completada y disponible en Producción.',notify_include_client:fields.includes('client'),notify_include_project:fields.includes('project'),notify_include_title:fields.includes('title'),notify_include_description:fields.includes('description'),notify_include_code:fields.includes('code'),notify_include_status:fields.includes('status'),notify_include_checklist:fields.includes('checklist'),client_id:full.client_id?String(full.client_id):'', project_id:full.project_id?String(full.project_id):'', sql_notes:full.sql_notes||'', title: full.title, description: full.description || '', status: full.status, environment: full.environment, priority: full.priority, checklist_text: (full.checklist || []).map(s => s.text).join('\n')};
@@ -248,6 +250,7 @@ export class AppComponent implements OnInit {
     const data = new FormData();
     Object.entries(this.draft).forEach(([key, value]) => data.append(key, typeof value==='boolean'?(value?'1':'0'):value));
     this.files.forEach(file => data.append('files[]', file));
+    this.taskDescriptionBlocks.forEach((b,i)=>Object.entries(b).forEach(([k,v])=>data.append(`description_blocks[${i}][${k}]`,String(v??''))));
     this.taskBlocks.forEach((b,i)=>Object.entries(b).forEach(([k,v])=>data.append(`notes_blocks[${i}][${k}]`,String(v??''))));
     const id = this.selected()?.id;
     if (id) data.append('_method', 'PUT');

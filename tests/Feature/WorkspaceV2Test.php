@@ -85,8 +85,8 @@ class WorkspaceV2Test extends TestCase
     {
         $u = User::factory()->create();
         $this->actingAs($u);
-        $payload = ['title' => 'Incendio en clientes', 'status' => 'development', 'environment' => 'local', 'priority' => 'normal', 'is_fire' => true, 'notes_blocks' => [['type' => 'text', 'html' => '<b>Revisar</b>']]];
-        $id = $this->postJson('/api/tasks', $payload)->assertCreated()->assertJsonPath('is_fire', true)->json('id');
+        $payload = ['title' => 'Incendio en clientes', 'status' => 'development', 'environment' => 'local', 'priority' => 'normal', 'is_fire' => true, 'description_blocks' => [['type' => 'text', 'html' => '<h2>Objetivo</h2><ul><li>Corregir</li></ul><script>alert(1)</script>']], 'notes_blocks' => [['type' => 'text', 'html' => '<b>Revisar</b>']]];
+        $id = $this->postJson('/api/tasks', $payload)->assertCreated()->assertJsonPath('is_fire', true)->assertJsonPath('description_blocks.0.html', '<h2>Objetivo</h2><ul><li>Corregir</li></ul>')->json('id');
         $this->patchJson("/api/tasks/$id/move", ['environment' => 'certification', 'status' => 'development'])->assertUnprocessable();
         $this->patchJson("/api/tasks/$id/move", ['environment' => 'certification', 'status' => 'review'])->assertOk();
         $this->patchJson("/api/tasks/$id/status", ['status' => 'done'])->assertUnprocessable();
@@ -141,7 +141,7 @@ class WorkspaceV2Test extends TestCase
         $this->getJson('/api/history')->assertUnauthorized();
         $this->actingAs(User::factory()->create());
         Storage::fake('local');
-        $this->post('/api/media', ['file' => UploadedFile::fake()->createWithContent('evil.html','<script>alert(1)</script>')], ['Accept' => 'application/json'])->assertUnprocessable();
-        $this->post('/api/media',['file' => UploadedFile::fake()->createWithContent('evil.svg','<svg onload="alert(1)"></svg>')],['Accept' => 'application/json'])->assertUnprocessable();
+        $this->post('/api/media', ['file' => UploadedFile::fake()->createWithContent('evil.html', '<script>alert(1)</script>')], ['Accept' => 'application/json'])->assertUnprocessable();
+        $this->post('/api/media', ['file' => UploadedFile::fake()->createWithContent('evil.svg', '<svg onload="alert(1)"></svg>')], ['Accept' => 'application/json'])->assertUnprocessable();
     }
 }

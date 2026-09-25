@@ -19,7 +19,7 @@ Nexo conserva la estructura de instalación existente: la carpeta privada sigue 
 - Avisos flotantes y pantallas de carga al cambiar de contexto.
 - Fecha límite retirada de la interfaz. Los valores antiguos se conservan en la base.
 - Incendio: marca independiente de la prioridad, con tarjeta roja.
-- Notas de tarea con fuente, tamaño, negrita, cursiva, subrayado, listas y color de texto.
+- Descripción y notas de tarea con edición tipo Word: fuente, tamaño, títulos, negrita, cursiva, subrayado, listas, checklist, color e imágenes.
 - Capturas con Ctrl+V, arrastrar imágenes, subirlas, ampliar y quitar.
 - Notas importantes con colores, fijado, archivo y búsqueda.
 - Biblioteca con archivos, imágenes, SQL, categorías, etiquetas, cliente/proyecto y filtros.
