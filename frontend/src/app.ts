@@ -19,6 +19,7 @@ type Space={id:number;name:string;color:string};
 type NotificationContact={id:number;name:string;email:string;channel:'email'|'message';is_default:boolean};
 type Attachment = {id: number; name: string; size: number};
 type Step = {text: string; done: boolean};
+type StatusSetting = {visible:boolean;active:boolean};
 type Task = {task_type:'task'|'bug';tags?:string[];is_fire:boolean;notify_on_production:boolean;notify_emails?:string[];notify_message_on_production:boolean;notify_message_emails?:string[];notification_message?:string;notification_message_short?:string;notification_fields?:string[];notification?:string;environment_return_from?:string|null;environment_return_to?:string|null;environment_return_reason?:string|null;environment_return_solution?:string|null;environment_return_resolved?:boolean;environment_returned_at?:string|null;production_return_reason?:string|null;production_returned_at?:string|null;client_id?:number|null; project_id?:number|null; notes_blocks?:Block[];description_blocks?:Block[]; sql_notes?:string|null; id: number; title: string; description: string | null; status: string; environment: string; priority: string; due_date: string | null; estimated_delivery_at?: string | null; checklist: Step[]; attachments?: Attachment[]; attachments_count?: number; updated_at: string; created_at: string};
 type Draft = {task_type:'task'|'bug';tags:string;is_fire:boolean;notify_on_production:boolean;notify_emails:string;notification_message:string;notify_message_on_production:boolean;notify_message_emails:string;notification_message_short:string;notify_include_client:boolean;notify_include_project:boolean;notify_include_title:boolean;notify_include_description:boolean;notify_include_code:boolean;notify_include_status:boolean;notify_include_checklist:boolean;notify_include_attachments:boolean;environment_return_resolved:boolean;environment_return_solution:string;estimated_delivery_at:string;client_id:string; project_id:string; sql_notes:string; title: string; description: string; status: string; environment: string; priority: string; checklist_text: string};
 
@@ -44,7 +45,9 @@ export class AppComponent implements OnInit {
   statusLabels: Record<string, string> = {pending: 'Pendiente', development: 'En desarrollo', review: 'En revisión', done: 'Completada'};
   environmentLabels: Record<string, string> = {backlog: 'Backlog', local: 'Local', development: 'Desarrollo', qa:'QA', certification: 'Certificación', production: 'Producción'};
   priorityLabels: Record<string, string> = {low: 'Baja', normal: 'Normal', high: 'Alta', urgent: 'Urgente'};
-  statuses = Object.entries(this.statusLabels);
+  statusOrder=signal<string[]>(Object.keys(this.statusLabels));
+  statusSettings=signal<Record<string,StatusSetting>>({});
+  get statuses(){return this.statusOrder().filter(key=>key in this.statusLabels).map(key=>[key,this.statusLabels[key]] as [string,string]);}
   get environments(){return Object.entries(this.environmentLabels).filter(e=>e[0]!=='qa'||this.tasks().some(t=>t.environment==='qa')||this.draft.environment==='qa');}
   priorities = Object.entries(this.priorityLabels);
   total = computed(() => Object.values(this.counts()).reduce((sum, n) => sum + n, 0));
@@ -79,10 +82,19 @@ export class AppComponent implements OnInit {
   visibleNav(){return this.nav.filter(([key])=>this.sidebarItemVisible(key));}
   visibleManagement(){return this.management.filter(([key])=>this.sidebarItemVisible(key));}
   visibleAdminItems(){return this.isAdmin()?[['spaces','layers','Espacios'],['users','users','Usuarios']].filter(([key])=>this.sidebarItemVisible(key)):[];}
-  allowedStatuses(env:string){return this.statuses.filter(s=>env==='backlog'?s[0]==='pending':['certification','qa','production'].includes(env)?['review','done'].includes(s[0]):['development','review','done'].includes(s[0]));}
-  defaultStatus(env:string,wanted='development'){return this.allowedStatuses(env).some(s=>s[0]===wanted)?wanted:'review';}
+  private statusPreferenceStorageKey(userId:number,spaceId:number){return `nexo-status-board:${userId}:${spaceId}`;}
+  loadStatusPreferences(userId:number,spaceId:number){let stored:{order?:string[];settings?:Record<string,Partial<StatusSetting>>}={};try{stored=JSON.parse(localStorage.getItem(this.statusPreferenceStorageKey(userId,spaceId))||'{}')||{};}catch{}const known=Object.keys(this.statusLabels),order=[...(stored.order||[]).filter(key=>known.includes(key))];for(const key of known)if(!order.includes(key))order.push(key);this.statusOrder.set(order);this.statusSettings.set(Object.fromEntries(known.map(key=>[key,{visible:stored.settings?.[key]?.visible!==false,active:stored.settings?.[key]?.active!==false}])));}
+  private saveStatusPreferences(){const userId=this.user()?.id,spaceId=this.spaceId();if(!userId||!spaceId)return;localStorage.setItem(this.statusPreferenceStorageKey(userId,spaceId),JSON.stringify({order:this.statusOrder(),settings:this.statusSettings()}));}
+  statusSetting(key:string){return this.statusSettings()[key]||{visible:true,active:true};}
+  statusTaskCount(key:string){return this.tasks().filter(task=>task.status===key).length;}
+  setStatusSetting(key:string,field:'visible'|'active',value:boolean){this.statusSettings.update(settings=>({...settings,[key]:{...this.statusSetting(key),[field]:value}}));this.saveStatusPreferences();}
+  moveStatusOrder(key:string,direction:-1|1){const order=[...this.statusOrder()],index=order.indexOf(key),next=index+direction;if(index<0||next<0||next>=order.length)return;[order[index],order[next]]=[order[next],order[index]];this.statusOrder.set(order);this.saveStatusPreferences();}
+  resetStatusPreferences(){this.statusOrder.set(Object.keys(this.statusLabels));this.statusSettings.set(Object.fromEntries(Object.keys(this.statusLabels).map(key=>[key,{visible:true,active:true}])));this.saveStatusPreferences();}
+  allowedStatuses(env:string,currentStatus?:string){const environmentStatuses=this.statuses.filter(s=>env==='backlog'?s[0]==='pending':['certification','qa','production'].includes(env)?['review','done'].includes(s[0]):['development','review','done'].includes(s[0]));return environmentStatuses.filter(s=>this.statusSetting(s[0]).active||s[0]===currentStatus);}
+  defaultStatus(env:string,wanted='development'){const allowed=this.allowedStatuses(env),preferred=env==='backlog'?'pending':['certification','qa','production'].includes(env)?'review':'development';return allowed.some(s=>s[0]===wanted)?wanted:allowed.some(s=>s[0]===preferred)?preferred:allowed[0]?.[0]||preferred;}
+  canUseStatus(env:string,status:string,currentStatus?:string){return this.allowedStatuses(env,currentStatus).some(s=>s[0]===status);}
   taskEnvironmentChanged(){this.draft.status=this.defaultStatus(this.draft.environment,this.draft.status);}
-  get columns(){return this.groupBy()==='environment'?this.environments:this.statuses;}
+  get columns(){if(this.groupBy()==='environment')return this.environments;return this.statuses.filter(([key])=>this.statusSetting(key).visible||this.tasks().some(task=>task.status===key));}
   get today(){return new Date().toLocaleDateString('es-CL',{weekday:'long',day:'numeric',month:'long'});}
   get pending(){return this.total()-(this.counts()['done']||0);}
   clientName(id?:number|null){const c=this.clients().find(c=>c.id===id);return c?c.name+(c.code?' · '+c.code:''):'General';}
@@ -144,7 +156,7 @@ export class AppComponent implements OnInit {
   async dropTask(event:DragEvent,key:string){event.preventDefault();this.dragOver.set('');const id=Number(event.dataTransfer?.getData('application/x-flujo-task'));const task=this.tasks().find(t=>t.id===id);if(!task||this.busy())return;if(this.groupBy()==='status'){await this.move(task,key);return;}if(task.environment===key)return;this.moveEnvironment=key;this.moveStatus=this.defaultStatus(key);this.moveReason='';if(this.autoEnvironment()&&!this.requiresEnvironmentReturnReason(task,key))await this.performMove(task,key,this.defaultStatus(key));else this.moveTask.set(task);}
   showMove(task:Task){this.moveTask.set(task);this.moveEnvironment=task.environment;this.moveStatus=task.status;this.moveReason='';}
   async confirmMove(){const task=this.moveTask();if(task)await this.performMove(task,this.moveEnvironment,this.moveStatus,this.moveReason);}
-  async performMove(task:Task,environment:string,status:string,rollbackReason=''){if(this.busy())return;this.busy.set(true);this.error.set('');try{const payload:{environment:string;status:string;rollback_reason?:string}={environment,status};if(this.requiresEnvironmentReturnReason(task,environment))payload.rollback_reason=rollbackReason.trim();const result=await firstValueFrom(this.http.patch<Task>('/api/tasks/'+task.id+'/move',payload));this.moveTask.set(null);await this.loadTasks();this.notice.set(result.notification==='sent'?'Tarea movida y correo enviado.':result.notification==='failed'?'Tarea movida, pero falló el envío del correo.':'Tarea movida a '+this.environmentLabels[environment]+'.');}catch(e){this.showError(e);}finally{this.busy.set(false);}}
+  async performMove(task:Task,environment:string,status:string,rollbackReason=''){if(this.busy())return;if(!this.canUseStatus(environment,status,task.environment===environment?task.status:undefined)){this.error.set('Elige un estado activo disponible para el ambiente de destino. Puedes activarlo en Preferencias.');return;}this.busy.set(true);this.error.set('');try{const payload:{environment:string;status:string;rollback_reason?:string}={environment,status};if(this.requiresEnvironmentReturnReason(task,environment))payload.rollback_reason=rollbackReason.trim();const result=await firstValueFrom(this.http.patch<Task>('/api/tasks/'+task.id+'/move',payload));this.moveTask.set(null);await this.loadTasks();this.notice.set(result.notification==='sent'?'Tarea movida y correo enviado.':result.notification==='failed'?'Tarea movida, pero falló el envío del correo.':'Tarea movida a '+this.environmentLabels[environment]+'.');}catch(e){this.showError(e);}finally{this.busy.set(false);}}
 
   spaces=signal<Space[]>([]);spaceId=signal(0);pageLoading=signal(false);private generation=0;
   diagrams=signal<Entry[]>([]);entryDiagram:Diagram=emptyDiagram();fullscreen=signal(false);members=signal<Member[]>([]);
@@ -166,8 +178,8 @@ export class AppComponent implements OnInit {
   setDefaultEdit(value:boolean){this.defaultEdit.set(value);localStorage.setItem('nexo-default-edit',value?'yes':'no');}
   asset(id:any,preview=false,attachment=false){return assetUrl('/api/'+(attachment?'attachments/':'media/')+id+'?workspace='+this.spaceId()+(preview?'&preview=1':''));}
   clearSpaceData(){this.generation++;this.tasks.set([]);this.counts.set({});this.clients.set([]);this.projects.set([]);this.notes.set([]);this.library.set([]);this.diagrams.set([]);this.notificationContacts.set([]);this.history.set([]);this.selected.set(null);this.selectedEntry.set(null);this.entryBlocks=[];this.taskBlocks=[];this.entryMedia.set([]);this.taskHistory.set([]);this.fullscreen.set(false);this.moveTask.set(null);this.catalogModal.set(false);this.query='';this.environment='';this.clientFilter='';this.projectFilter='';this.entryQuery='';this.entryClient='';this.entryProject='';this.entryCategory='';this.entryTag='';this.entryType='';this.archived=false;}
-  async initializeSpaces(){const spaces=await firstValueFrom(this.http.get<Space[]>('/api/workspaces'));this.spaces.set(spaces);const saved=Number(localStorage.getItem('nexo-space'));const id=spaces.find(s=>s.id===saved)?.id||spaces[0]?.id;if(id){this.spaceId.set(id);localStorage.setItem('nexo-space',String(id));this.clearSpaceData();this.view.set('dashboard');await this.loadWorkspace();}else this.error.set('Tu cuenta todavía no tiene un espacio asignado.');}
-  async switchSpace(id:number){if(id===this.spaceId()||this.busy()||this.pageLoading()||this.uploadBusy()||this.attachmentBusy())return;this.clearSpaceData();this.spaceId.set(Number(id));localStorage.setItem('nexo-space',String(id));this.view.set('dashboard');this.mobileOpen.set(false);this.error.set('');await this.loadWorkspace();this.notice.set('Ahora estás en '+this.spaceName+'.');}
+  async initializeSpaces(){const spaces=await firstValueFrom(this.http.get<Space[]>('/api/workspaces'));this.spaces.set(spaces);const saved=Number(localStorage.getItem('nexo-space'));const id=spaces.find(s=>s.id===saved)?.id||spaces[0]?.id;if(id){this.spaceId.set(id);localStorage.setItem('nexo-space',String(id));this.clearSpaceData();if(this.user())this.loadStatusPreferences(this.user()!.id,id);this.view.set('dashboard');await this.loadWorkspace();}else this.error.set('Tu cuenta todavía no tiene un espacio asignado.');}
+  async switchSpace(id:number){if(id===this.spaceId()||this.busy()||this.pageLoading()||this.uploadBusy()||this.attachmentBusy())return;this.clearSpaceData();this.spaceId.set(Number(id));localStorage.setItem('nexo-space',String(id));if(this.user())this.loadStatusPreferences(this.user()!.id,id);this.view.set('dashboard');this.mobileOpen.set(false);this.error.set('');await this.loadWorkspace();this.notice.set('Ahora estás en '+this.spaceName+'.');}
   editSpace(s?:Space){this.editingSpace=s?.id||null;this.spaceDraft={name:s?.name||'',color:s?.color||'blue'};this.spaceModal.set(true);}
   async saveSpace(){if(this.busy())return;this.busy.set(true);try{const space=await firstValueFrom(this.editingSpace?this.http.put<Space>('/api/workspaces/'+this.editingSpace,this.spaceDraft):this.http.post<Space>('/api/workspaces',this.spaceDraft));this.spaces.set(await firstValueFrom(this.http.get<Space[]>('/api/workspaces')));this.spaceModal.set(false);this.notice.set('Espacio guardado: '+space.name+'.');}catch(e){this.showError(e);}finally{this.busy.set(false);}}
   async loadUsers(){try{this.users.set(await firstValueFrom(this.http.get<User[]>('/api/users')));}catch(e){this.showError(e);}}
@@ -265,9 +277,11 @@ export class AppComponent implements OnInit {
   complete(task: Task) { return (task.checklist || []).filter(step => step.done).length; }
   overdue(task: Task) { return !!task.due_date && task.status !== 'done' && task.due_date.slice(0, 10) < [new Date().getFullYear(), String(new Date().getMonth() + 1).padStart(2, '0'), String(new Date().getDate()).padStart(2, '0')].join('-'); }
   taskCode(id: number) { return `NX-${String(id).padStart(3, '0')}`; }
-  newTask(status = 'pending') {
+  newTask(status?:string) {
     if(!this.canEdit()||this.pageLoading())return;
-    this.selected.set(null); this.draft = {...this.emptyDraft(),notify_emails:this.defaultRecipients('email'),notify_message_emails:this.defaultRecipients('message'),task_type:'task', status: this.groupBy()==='status'?status:'pending', environment:this.groupBy()==='environment'&&this.environmentLabels[status]?status:'backlog'};this.taskDescriptionBlocks=[{type:'text',text:''}]; this.taskBlocks=[{type:'text',text:''}]; this.draft.status=this.defaultStatus(this.draft.environment,this.draft.status); this.files = []; this.view.set('detail'); this.error.set(''); this.notice.set(''); window.scrollTo(0, 0);
+    let targetStatus=status||'pending';if(this.groupBy()==='status'&&!status)targetStatus=this.statuses.find(([key])=>this.statusSetting(key).active&&this.statusSetting(key).visible)?.[0]||this.statuses.find(([key])=>this.statusSetting(key).active)?.[0]||targetStatus;if(this.groupBy()==='status'&&(!this.statusSetting(targetStatus).active||!this.statusSetting(targetStatus).visible)){this.error.set('Activa y muestra ese estado en Preferencias para crear tareas.');return;}
+    const environment=this.groupBy()==='environment'&&this.environmentLabels[targetStatus]?targetStatus:this.groupBy()==='status'?(targetStatus==='pending'?'backlog':'development'):'backlog';
+    this.selected.set(null); this.draft = {...this.emptyDraft(),notify_emails:this.defaultRecipients('email'),notify_message_emails:this.defaultRecipients('message'),task_type:'task', status: this.groupBy()==='status'?targetStatus:'pending', environment};this.taskDescriptionBlocks=[{type:'text',text:''}]; this.taskBlocks=[{type:'text',text:''}]; this.draft.status=this.defaultStatus(this.draft.environment,this.draft.status); this.files = []; this.view.set('detail'); this.error.set(''); this.notice.set(''); window.scrollTo(0, 0);
   }
   async openTask(task: Task) {
     if (this.busy()) return;
@@ -293,6 +307,7 @@ export class AppComponent implements OnInit {
   }
   async save(auto=false) {
     if (this.busy() || this.uploadBusy()) return;
+    const current=this.selected(),currentStatus=current?.environment===this.draft.environment?current.status:undefined;if(!this.canUseStatus(this.draft.environment,this.draft.status,currentStatus)){this.error.set('No hay un estado activo válido para este ambiente. Activa uno en Preferencias o elige otro estado.');if(auto)this.autosaveState.set('idle');return;}
     this.busy.set(true); if(auto)this.autosaveState.set('saving');this.error.set(''); if(!auto)this.notice.set('');
     const data = new FormData();
     Object.entries(this.draft).forEach(([key, value]) => data.append(key, typeof value==='boolean'?(value?'1':'0'):value));
@@ -312,7 +327,7 @@ export class AppComponent implements OnInit {
   async move(task: Task, status: string) {
     if (this.busy() || status === task.status) return;
     this.busy.set(true); this.error.set('');
-    try { if(!this.allowedStatuses(task.environment).some(s=>s[0]===status)){this.error.set('Ese estado no está disponible en '+this.environmentLabels[task.environment]+'. Cambia primero el ambiente.');return;} const result=await firstValueFrom(this.http.patch<Task>(`/api/tasks/${task.id}/status`, {status})); await this.loadTasks(); this.notice.set(result.notification==='sent'?'Estado actualizado y correo enviado.':result.notification==='failed'?'Estado actualizado, pero falló el envío del correo.':'Estado actualizado.'); }
+    try { if(!this.canUseStatus(task.environment,status,task.status)){this.error.set('Ese estado no está activo o no está disponible en '+this.environmentLabels[task.environment]+'. Activa otro estado en Preferencias o cambia el ambiente.');return;} const result=await firstValueFrom(this.http.patch<Task>(`/api/tasks/${task.id}/status`, {status})); await this.loadTasks(); this.notice.set(result.notification==='sent'?'Estado actualizado y correo enviado.':result.notification==='failed'?'Estado actualizado, pero falló el envío del correo.':'Estado actualizado.'); }
     catch (e) { this.showError(e); } finally { this.busy.set(false); }
   }
   async toggleStep(index: number) {
