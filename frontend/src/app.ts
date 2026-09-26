@@ -41,7 +41,7 @@ export class AppComponent implements OnInit {
   email = ''; password = ''; query = ''; environment = '';taskTag='';
   draft: Draft = this.emptyDraft();
   statusLabels: Record<string, string> = {pending: 'Pendiente', development: 'En desarrollo', review: 'En revisión', done: 'Completada'};
-  environmentLabels: Record<string, string> = {local: 'Local', development: 'Desarrollo', qa:'QA', certification: 'Certificación', production: 'Producción'};
+  environmentLabels: Record<string, string> = {backlog: 'Backlog', local: 'Local', development: 'Desarrollo', qa:'QA', certification: 'Certificación', production: 'Producción'};
   priorityLabels: Record<string, string> = {low: 'Baja', normal: 'Normal', high: 'Alta', urgent: 'Urgente'};
   statuses = Object.entries(this.statusLabels);
   get environments(){return Object.entries(this.environmentLabels).filter(e=>e[0]!=='qa'||this.tasks().some(t=>t.environment==='qa')||this.draft.environment==='qa');}
@@ -68,7 +68,7 @@ export class AppComponent implements OnInit {
   management=[['clients','users','Clientes'],['projects','layers','Proyectos'],['history','history','Historial']];
   pageNames:Record<string,string>={dashboard:'Inicio',board:'Tablero',bugs:'Bugs',notes:'Notas importantes',library:'Biblioteca',clients:'Clientes',projects:'Proyectos',history:'Historial',diagrams:'Diagramas',users:'Usuarios',spaces:'Espacios',reading:'Lectura',taskreading:'Lectura de tarea',settings:'Preferencias',detail:'Requerimiento',entry:'Editor'};
   get currentTitle(){return this.pageNames[this.view()]||'Mi espacio';}
-  allowedStatuses(env:string){return this.statuses.filter(s=>env==='certification'?s[0]==='review':['qa','production'].includes(env)?['review','done'].includes(s[0]):true);}
+  allowedStatuses(env:string){return this.statuses.filter(s=>env==='backlog'?s[0]==='pending':['certification','qa','production'].includes(env)?['review','done'].includes(s[0]):['development','review','done'].includes(s[0]));}
   defaultStatus(env:string,wanted='development'){return this.allowedStatuses(env).some(s=>s[0]===wanted)?wanted:'review';}
   taskEnvironmentChanged(){this.draft.status=this.defaultStatus(this.draft.environment,this.draft.status);}
   get columns(){return this.groupBy()==='environment'?this.environments:this.statuses;}
@@ -228,7 +228,7 @@ export class AppComponent implements OnInit {
   newBug(){this.newTask('pending','bug');}
   newTask(status = 'pending',type:'task'|'bug'='task') {
     if(!this.canEdit()||this.pageLoading())return;
-    this.selected.set(null); this.draft = {...this.emptyDraft(),notify_emails:this.defaultRecipients('email'),notify_message_emails:this.defaultRecipients('message'),task_type:type, status: this.groupBy()==='status'?status:'pending', environment:this.groupBy()==='environment'&&this.environmentLabels[status]?status:'local'};this.taskDescriptionBlocks=[{type:'text',text:''}]; this.taskBlocks=[{type:'text',text:''}]; this.draft.status=this.defaultStatus(this.draft.environment,this.draft.status); this.files = []; this.view.set('detail'); this.error.set(''); this.notice.set(''); window.scrollTo(0, 0);
+    this.selected.set(null); this.draft = {...this.emptyDraft(),notify_emails:this.defaultRecipients('email'),notify_message_emails:this.defaultRecipients('message'),task_type:type, status: this.groupBy()==='status'?status:'pending', environment:this.groupBy()==='environment'&&this.environmentLabels[status]?status:'backlog'};this.taskDescriptionBlocks=[{type:'text',text:''}]; this.taskBlocks=[{type:'text',text:''}]; this.draft.status=this.defaultStatus(this.draft.environment,this.draft.status); this.files = []; this.view.set('detail'); this.error.set(''); this.notice.set(''); window.scrollTo(0, 0);
   }
   async openTask(task: Task) {
     if (this.busy()) return;

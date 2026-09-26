@@ -14,7 +14,7 @@ class SpacesAndRolesTest extends TestCase {
   $this->withHeader('X-Workspace-ID',(string)$a);
   $client=$this->postJson('/api/catalog/clients',['name'=>'FEN','code'=>'9966'])->assertOk()->assertJsonPath('code','9966')->json('id');
   $entry=$this->postJson('/api/entries',$this->note()+['client_id'=>$client])->assertCreated()->json('id');
-  $task=$this->postJson('/api/tasks',['title'=>'Trabajo Safin','environment'=>'local','status'=>'pending','priority'=>'normal'])->assertCreated()->json('id');
+  $task=$this->postJson('/api/tasks',['title'=>'Trabajo Safin','environment'=>'backlog','status'=>'pending','priority'=>'normal'])->assertCreated()->json('id');
   $this->withHeader('X-Workspace-ID',(string)$b);
   $this->getJson('/api/tasks')->assertJsonCount(0,'tasks');$this->getJson('/api/entries?kind=note')->assertJsonCount(0);$this->getJson('/api/catalog')->assertJsonCount(0,'clients');$this->getJson('/api/history')->assertJsonCount(0,'data');
   $this->getJson('/api/tasks/'.$task)->assertNotFound();$this->getJson('/api/entries/'.$entry)->assertNotFound();

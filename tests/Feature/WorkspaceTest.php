@@ -9,7 +9,7 @@ use Tests\TestCase;
 class WorkspaceTest extends TestCase {
     use RefreshDatabase;
     private function payload(array $changes = []): array {
-        return array_merge(['title' => 'Crear módulo de clientes', 'description' => 'Validar correo y guardar el cliente.', 'status' => 'pending', 'environment' => 'local', 'priority' => 'high', 'checklist_text' => "Crear tabla\nSubir archivos"], $changes);
+        return array_merge(['title' => 'Crear módulo de clientes', 'description' => 'Validar correo y guardar el cliente.', 'status' => 'pending', 'environment' => 'backlog', 'priority' => 'high', 'checklist_text' => "Crear tabla\nSubir archivos"], $changes);
     }
     public function test_guests_cannot_read_or_modify_tasks(): void {
         $this->getJson('/api/tasks')->assertUnauthorized();

@@ -99,7 +99,7 @@ class WorkspaceController extends Controller
         unset($data['autosave']);
         Content::validateProject(array_replace($task->only(['client_id', 'project_id']), $data));
 
-        $this->validateState($data['environment'], $data['status']);
+        $this->validateState($data['environment'], $data['status'], $task);
 
         if (array_key_exists('notes_blocks', $data)) {
             $data['notes_blocks'] = Content::blocks($data['notes_blocks']);
@@ -201,7 +201,7 @@ class WorkspaceController extends Controller
         $this->authorizeTask($r, $task);
         $data = $r->validate(['status' => ['required', Rule::in(array_keys(Task::STATUSES))]]);
 
-        $this->validateState($task->environment, $data['status']);
+        $this->validateState($task->environment, $data['status'], $task);
         $task->update($data);
         $this->resetProductionNotificationIfNeeded($task);
 
@@ -210,10 +210,10 @@ class WorkspaceController extends Controller
 
     }
 
-    private function validateState(string $environment, string $status): void
+    private function validateState(string $environment, string $status, ?Task $task = null): void
     {
-
-        if (! in_array($status, Task::allowedStatuses($environment))) {
+        $legacyPending = $task && $task->status === 'pending' && $task->environment === $environment && $status === 'pending';
+        if (! $legacyPending && ! in_array($status, Task::allowedStatuses($environment))) {
             throw ValidationException::withMessages(['status' => 'Ese estado no corresponde al ambiente seleccionado. Certificación usa revisión; QA y Producción usan revisión o completada.']);
         }
 
@@ -226,7 +226,7 @@ class WorkspaceController extends Controller
 
         $data = $r->validate(['status' => ['required', Rule::in(array_keys(Task::STATUSES))], 'environment' => ['required', Rule::in(array_keys(Task::ENVIRONMENTS))]]);
 
-        $this->validateState($data['environment'], $data['status']);
+        $this->validateState($data['environment'], $data['status'], $task);
 
         DB::transaction(function () use ($r, $task, $data) {
             $task->update($data);
