@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Nexo · API privada",
-    "description": "Colección segura para probar la API JSON de Nexo. No contiene credenciales. Usa cookies de sesión Laravel; ejecuta 01 y luego 02 antes de las peticiones protegidas.",
+    "description": "Colección para probar la API JSON de Nexo. No contiene credenciales. Las peticiones web usan cookies de sesión Laravel; ejecuta 01 y luego 02. Las peticiones nativas usan token Bearer.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "event": [
@@ -53,6 +53,18 @@
     },
     {
       "key": "password",
+      "value": ""
+    },
+    {
+      "key": "profile_user_id",
+      "value": ""
+    },
+    {
+      "key": "mobile_token",
+      "value": ""
+    },
+    {
+      "key": "mobile_asset_token",
       "value": ""
     }
   ],
@@ -145,7 +157,10 @@
             "exec": [
               "pm.test('Login correcto', () => pm.response.to.have.status(200));",
               "const data = pm.response.json();",
-              "if (data.user) pm.environment.set('user_id', String(data.user.id));"
+              "if (data.user) {",
+              "  pm.collectionVariables.set('user_id', String(data.user.id));",
+              "  pm.collectionVariables.set('profile_user_id', String(data.user.id));",
+              "}"
             ]
           }
         }
@@ -181,7 +196,7 @@
             "exec": [
               "pm.test('Espacios disponibles', () => pm.response.to.have.status(200));",
               "const spaces = pm.response.json();",
-              "if (Array.isArray(spaces) && spaces[0]) pm.environment.set('workspace_id', String(spaces[0].id));"
+              "if (Array.isArray(spaces) && spaces[0]) pm.collectionVariables.set('workspace_id', String(spaces[0].id));"
             ]
           }
         }
@@ -257,7 +272,7 @@
             "exec": [
               "pm.test('Tareas disponibles', () => pm.response.to.have.status(200));",
               "const data = pm.response.json();",
-              "if (data.tasks && data.tasks[0]) pm.environment.set('task_id', String(data.tasks[0].id));"
+              "if (data.tasks && data.tasks[0]) pm.collectionVariables.set('task_id', String(data.tasks[0].id));"
             ]
           }
         }
@@ -322,7 +337,7 @@
             "exec": [
               "pm.test('Tarea creada', () => pm.response.to.have.status(201));",
               "const task = pm.response.json();",
-              "if (task.id) pm.environment.set('task_id', String(task.id));"
+              "if (task.id) pm.collectionVariables.set('task_id', String(task.id));"
             ]
           }
         }
@@ -591,7 +606,7 @@
             "exec": [
               "pm.test('Entradas disponibles', () => pm.response.to.have.status(200));",
               "const entries = pm.response.json();",
-              "if (Array.isArray(entries) && entries[0]) pm.environment.set('entry_id', String(entries[0].id));"
+              "if (Array.isArray(entries) && entries[0]) pm.collectionVariables.set('entry_id', String(entries[0].id));"
             ]
           }
         }
@@ -656,7 +671,7 @@
             "exec": [
               "pm.test('Nota creada', () => pm.response.to.have.status(201));",
               "const entry = pm.response.json();",
-              "if (entry.id) pm.environment.set('entry_id', String(entry.id));"
+              "if (entry.id) pm.collectionVariables.set('entry_id', String(entry.id));"
             ]
           }
         }
@@ -754,6 +769,344 @@
               "pm.test('Sesión cerrada', () => pm.response.to.have.status(204));"
             ]
           }
+        }
+      ]
+    },
+    {
+      "name": "15 · Usuarios y fotos de perfil",
+      "description": "Cada persona puede gestionar su foto; un administrador también puede gestionar fotos de otros. profile_user_id se completa al iniciar sesión. Para otro usuario, consulta la lista de usuarios (solo administrador) y cambia ese ID.",
+      "item": [
+        {
+          "name": "Usuarios (solo administrador)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/users",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "users"
+              ]
+            },
+            "description": "Lista usuarios y su profile_photo_url. Requiere rol administrador."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Lista disponible para administrador', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Ver mi foto (después de subirla)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "image/*"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/users/{{profile_user_id}}/photo",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "{{profile_user_id}}",
+                "photo"
+              ]
+            },
+            "description": "Descarga la foto privada. Si todavía no hay foto, la API responde 404."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Foto accesible', () => pm.response.to.have.status(200));",
+                  "pm.test('La respuesta es una imagen', () => pm.expect(pm.response.headers.get('Content-Type')).to.match(/^image\\//));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Subir o reemplazar foto (elige archivo)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/users/{{profile_user_id}}/photo",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "{{profile_user_id}}",
+                "photo"
+              ]
+            },
+            "description": "En Body > form-data, selecciona un archivo en el campo photo. JPG, PNG o WEBP, máximo 5 MB. No configures Content-Type manualmente; Postman añade el límite multipart.",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "photo",
+                  "type": "file",
+                  "src": "",
+                  "description": "Imagen JPG, PNG o WEBP (máximo 5 MB)."
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Foto cargada', () => pm.response.to.have.status(200));",
+                  "const data = pm.response.json();",
+                  "pm.test('La API devuelve la ruta de la foto', () => pm.expect(data.profile_photo_url).to.be.a('string'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Quitar mi foto (opcional)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/users/{{profile_user_id}}/photo",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "{{profile_user_id}}",
+                "photo"
+              ]
+            },
+            "description": "Quita la foto actual y deja el perfil sin imagen. Ejecútala solo si eso es lo que quieres."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Foto quitada', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "16 · Sesión móvil y acceso a fotos",
+      "description": "Pruebas opcionales de Capacitor/Android. El token se guarda como variable local de esta colección; no lo exportes ni compartas.",
+      "item": [
+        {
+          "name": "Iniciar sesión móvil",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/mobile/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "mobile",
+                "login"
+              ]
+            },
+            "description": "Guarda el token Bearer en mobile_token y el ID del usuario en user_id/profile_user_id.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Login móvil correcto', () => pm.response.to.have.status(200));",
+                  "const data = pm.response.json();",
+                  "if (data.token) pm.collectionVariables.set('mobile_token', data.token);",
+                  "if (data.user && data.user.id) {",
+                  "  pm.collectionVariables.set('user_id', String(data.user.id));",
+                  "  pm.collectionVariables.set('profile_user_id', String(data.user.id));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Consultar sesión móvil",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{mobile_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/mobile/session",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "mobile",
+                "session"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Sesión móvil válida', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Crear token temporal para imágenes",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{mobile_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/mobile/asset-token",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "mobile",
+                "asset-token"
+              ]
+            },
+            "description": "El token de imagen expira a los 15 minutos."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Token de imagen creado', () => pm.response.to.have.status(200));",
+                  "const data = pm.response.json();",
+                  "if (data.token) pm.collectionVariables.set('mobile_asset_token', data.token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Ver foto como la app Android",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "image/*"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/users/{{profile_user_id}}/photo?asset_token={{mobile_asset_token}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "{{profile_user_id}}",
+                "photo?asset_token={{mobile_asset_token}}"
+              ]
+            },
+            "description": "Usa el token temporal anterior; esta solicitud de imagen no necesita encabezado Bearer."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Foto accesible', () => pm.response.to.have.status(200));",
+                  "pm.test('La respuesta es una imagen', () => pm.expect(pm.response.headers.get('Content-Type')).to.match(/^image\\//));"
+                ]
+              }
+            }
+          ]
         }
       ]
     }
