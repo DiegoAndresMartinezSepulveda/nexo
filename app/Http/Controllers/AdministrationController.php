@@ -25,6 +25,20 @@ class AdministrationController extends Controller {
   $user??=new User;$ids=array_unique($data['workspace_ids']);unset($data['workspace_ids']);
   if(empty($data['password']))unset($data['password']);else $data['password']=Hash::make($data['password']);
   DB::transaction(function()use($user,$data,$ids){$user->fill($data);$user->role=$data['role'];$user->save();DB::table('workspace_user')->where('user_id',$user->id)->delete();foreach($ids as $id)DB::table('workspace_user')->insert(['user_id'=>$user->id,'workspace_id'=>$id]);DB::table('sessions')->where('user_id',$user->id)->delete();});
-  return response()->json($user->only('id','name','email','role'));
+ return response()->json($user->only('id','name','email','role'));
+ }
+ public function notificationContacts(Request $r){
+  return response()->json(DB::table('notification_contacts')->where('workspace_id',Spaces::id())->orderBy('channel')->orderBy('name')->get());
+ }
+ public function saveNotificationContact(Request $r,?int $id=null){
+  $this->admin($r);
+  $data=$r->validate(['name'=>'required|string|max:120','email'=>'required|email|max:255','channel'=>['required',Rule::in(['email','message'])],'is_default'=>'sometimes|boolean']);
+  $data['email']=mb_strtolower(trim($data['email']));$data['workspace_id']=Spaces::id();$data['updated_at']=now();
+  if($id){$contact=DB::table('notification_contacts')->where('id',$id)->where('workspace_id',Spaces::id())->first();abort_unless($contact,404);DB::table('notification_contacts')->where('id',$id)->update($data);}
+  else{$data['created_at']=now();$id=DB::table('notification_contacts')->insertGetId($data);}
+  return response()->json(DB::table('notification_contacts')->where('id',$id)->first());
+ }
+ public function deleteNotificationContact(Request $r,int $id){
+  $this->admin($r);abort_unless(DB::table('notification_contacts')->where('id',$id)->where('workspace_id',Spaces::id())->exists(),404);DB::table('notification_contacts')->where('id',$id)->delete();return response()->noContent();
  }
 }

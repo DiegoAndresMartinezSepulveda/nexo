@@ -24,7 +24,7 @@ class Task extends Model
 
     protected function casts(): array
     {
-        return ['checklist' => 'array', 'notes_blocks' => 'array', 'description_blocks' => 'array', 'tags' => 'array', 'notify_emails' => 'array', 'notification_fields' => 'array', 'due_date' => 'date', 'estimated_delivery_at' => 'datetime', 'production_notified_at' => 'datetime', 'is_fire' => 'boolean', 'notify_on_production' => 'boolean'];
+        return ['checklist' => 'array', 'notes_blocks' => 'array', 'description_blocks' => 'array', 'tags' => 'array', 'notify_emails' => 'array', 'notify_message_emails' => 'array', 'notification_fields' => 'array', 'due_date' => 'date', 'estimated_delivery_at' => 'datetime', 'production_notified_at' => 'datetime', 'is_fire' => 'boolean', 'notify_on_production' => 'boolean', 'notify_message_on_production' => 'boolean'];
     }
 
     public function attachments(): HasMany

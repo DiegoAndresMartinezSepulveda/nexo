@@ -26,6 +26,10 @@ Route::prefix('api')->group(function () {
             Route::delete('/catalog/{kind}/{id}', [Content::class, 'deleteCatalog']);
             Route::get('/entries', [Content::class, 'index']);
             Route::get('/members', [Content::class, 'members']);
+            Route::get('/notification-contacts', [AdministrationController::class, 'notificationContacts']);
+            Route::post('/notification-contacts', [AdministrationController::class, 'saveNotificationContact']);
+            Route::put('/notification-contacts/{id}', [AdministrationController::class, 'saveNotificationContact']);
+            Route::delete('/notification-contacts/{id}', [AdministrationController::class, 'deleteNotificationContact']);
             Route::post('/entries', [Content::class, 'save']);
             Route::get('/entries/{entry}', [Content::class, 'show']);
             Route::put('/entries/{entry}', [Content::class, 'save']);
