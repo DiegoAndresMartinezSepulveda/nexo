@@ -35,6 +35,21 @@
                   "maximumError": "1MB"
                 }
               ]
+            },
+            "mobile": {
+              "outputPath": {
+                "base": "mobile-app",
+                "browser": ""
+              },
+              "baseHref": "/",
+              "outputHashing": "all",
+              "budgets": [
+                {
+                  "type": "initial",
+                  "maximumWarning": "650kB",
+                  "maximumError": "1MB"
+                }
+              ]
             }
           },
           "defaultConfiguration": "production"

@@ -5,6 +5,7 @@ import {HttpClient} from '@angular/common/http';
 import {DomSanitizer} from '@angular/platform-browser';
 import {firstValueFrom} from 'rxjs';
 import DOMPurify from 'dompurify';
+import {assetUrl} from './mobile';
 
 export type Block = {type:'text'|'image'; text?:string; html?:string; media_id?:number; caption?:string};
 export type Media = {id:number; name:string; mime:string; size:number};
@@ -78,7 +79,7 @@ export class RichTextComponent implements AfterViewInit {
   @if(preview()){<app-modal title="Captura" (closed)="preview.set(null)"><img class="lightbox-image" [src]="asset(preview())" alt="Captura ampliada"></app-modal>}
 `})
 export class NoteEditorComponent {
-  asset(id:any){return '/api/media/'+id+'?preview=1&workspace='+localStorage.getItem('nexo-space');}
+  asset(id:any){return assetUrl('/api/media/'+id+'?preview=1&workspace='+localStorage.getItem('nexo-space'));}
   private http=inject(HttpClient); @Input() blocks:Block[]=[]; @Output() blocksChange=new EventEmitter<Block[]>(); @Output() uploadState=new EventEmitter<boolean>(); @Output() failure=new EventEmitter<string>();
   uploading=signal(false); preview=signal<number|null>(null);
   publish(){this.blocksChange.emit([...this.blocks]);}

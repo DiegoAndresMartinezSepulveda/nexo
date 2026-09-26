@@ -36,7 +36,13 @@ class WorkspaceController extends Controller
     public function logout(Request $r)
     {
 
-        Auth::logout();
+        $token = $r->user()?->currentAccessToken();
+        if ($token instanceof \Laravel\Sanctum\PersonalAccessToken) {
+            $token->delete();
+        }
+
+        Auth::guard('web')->logout();
+        Auth::forgetGuards();
         $r->session()->invalidate();
         $r->session()->regenerateToken();
 

@@ -4,6 +4,10 @@
   "private": true,
   "scripts": {
     "build": "ng build",
+    "build:mobile": "ng build --configuration mobile",
+    "cap:sync": "npm run build:mobile && npx cap sync android",
+    "cap:open": "npx cap open android",
+    "cap:run": "npx cap run android",
     "start": "ng serve --proxy-config proxy.conf.json"
   },
   "dependencies": {
@@ -12,6 +16,8 @@
     "@angular/core": "^21.2.0",
     "@angular/forms": "^21.2.0",
     "@angular/platform-browser": "^21.2.0",
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/core": "^8.5.2",
     "dompurify": "^3.4.16",
     "jspdf": "^4.2.1",
     "rxjs": "~7.8.2",
@@ -20,6 +26,7 @@
   "devDependencies": {
     "@angular/build": "^21.2.0",
     "@angular/cli": "^21.2.0",
+    "@capacitor/cli": "^8.5.2",
     "typescript": "~5.9.3"
   }
 }

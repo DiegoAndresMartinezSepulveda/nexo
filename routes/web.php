@@ -2,7 +2,9 @@
 
 use App\Http\Controllers\AdministrationController;
 use App\Http\Controllers\ContentController as Content;
+use App\Http\Controllers\MobileAuthController;
 use App\Http\Controllers\WorkspaceController as Workspace;
+use App\Http\Middleware\MobileAssetToken;
 use App\Http\Middleware\WorkspaceAccess;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -11,7 +13,13 @@ use Illuminate\Support\Facades\Route;
 Route::prefix('api')->group(function () {
     Route::get('/session', fn (Request $r) => response()->json(['user' => $r->user()?->only('id', 'name', 'email', 'role')]));
     Route::post('/login', [Workspace::class, 'login'])->middleware('throttle:5,1')->name('login');
-    Route::middleware('auth')->group(function () {
+    Route::post('/mobile/login', [MobileAuthController::class, 'login'])->middleware('throttle:5,1');
+    // Resolve short-lived native asset links before Sanctum authenticates the
+    // request; normal API calls continue using their bearer header/session.
+    Route::middleware(MobileAssetToken::class)->group(function () {
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::get('/mobile/session', [MobileAuthController::class, 'session']);
+        Route::get('/mobile/asset-token', [MobileAuthController::class, 'assetToken']);
         Route::post('/logout', [Workspace::class, 'logout']);
         Route::get('/workspaces', [AdministrationController::class, 'spaces']);
         Route::post('/workspaces', [AdministrationController::class, 'saveSpace']);
@@ -49,6 +57,7 @@ Route::prefix('api')->group(function () {
             Route::get('/attachments/{attachment}', [Workspace::class, 'download']);
             Route::delete('/attachments/{attachment}', [Workspace::class, 'deleteAttachment']);
         });
+    });
     });
 });
 Route::get('/', fn () => redirect('/app/'));

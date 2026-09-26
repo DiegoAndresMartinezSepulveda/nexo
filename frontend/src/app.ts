@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
+import { assetUrl, isNativeMobile } from './mobile';
 import {Block, Media, NoteEditorComponent, ModalComponent} from './editor';
 import {Diagram,DiagramComponent,emptyDiagram} from './diagram';
 import {ReadingComponent} from './reading';
@@ -150,7 +151,7 @@ export class AppComponent implements OnInit {
   get spaceName(){return this.spaces().find(s=>s.id===this.spaceId())?.name||'Mi espacio';}
   roleName(role:string){return role==='admin'?'Administrador':role==='reader'?'Solo lectura':'Editor';}
   setDefaultEdit(value:boolean){this.defaultEdit.set(value);localStorage.setItem('nexo-default-edit',value?'yes':'no');}
-  asset(id:any,preview=false,attachment=false){return '/api/'+(attachment?'attachments/':'media/')+id+'?workspace='+this.spaceId()+(preview?'&preview=1':'');}
+  asset(id:any,preview=false,attachment=false){return assetUrl('/api/'+(attachment?'attachments/':'media/')+id+'?workspace='+this.spaceId()+(preview?'&preview=1':''));}
   clearSpaceData(){this.generation++;this.tasks.set([]);this.counts.set({});this.clients.set([]);this.projects.set([]);this.notes.set([]);this.library.set([]);this.diagrams.set([]);this.notificationContacts.set([]);this.history.set([]);this.selected.set(null);this.selectedEntry.set(null);this.entryBlocks=[];this.taskBlocks=[];this.entryMedia.set([]);this.taskHistory.set([]);this.fullscreen.set(false);this.moveTask.set(null);this.catalogModal.set(false);this.query='';this.environment='';this.clientFilter='';this.projectFilter='';this.entryQuery='';this.entryClient='';this.entryProject='';this.entryCategory='';this.entryTag='';this.entryType='';this.archived=false;}
   async initializeSpaces(){const spaces=await firstValueFrom(this.http.get<Space[]>('/api/workspaces'));this.spaces.set(spaces);const saved=Number(localStorage.getItem('nexo-space'));const id=spaces.find(s=>s.id===saved)?.id||spaces[0]?.id;if(id){this.spaceId.set(id);localStorage.setItem('nexo-space',String(id));this.clearSpaceData();this.view.set('dashboard');await this.loadWorkspace();}else this.error.set('Tu cuenta todavía no tiene un espacio asignado.');}
   async switchSpace(id:number){if(id===this.spaceId()||this.busy()||this.pageLoading()||this.uploadBusy()||this.attachmentBusy())return;this.clearSpaceData();this.spaceId.set(Number(id));localStorage.setItem('nexo-space',String(id));this.view.set('dashboard');this.mobileOpen.set(false);this.error.set('');await this.loadWorkspace();this.notice.set('Ahora estás en '+this.spaceName+'.');}
@@ -171,15 +172,30 @@ export class AppComponent implements OnInit {
   async ngOnInit() {
     this.initializeTheme();
     try {
-      const result = await firstValueFrom(this.http.get<{user: User | null}>('/api/session'));
+      const result = await firstValueFrom(this.http.get<{user: User | null}>(isNativeMobile ? '/api/mobile/session' : '/api/session'));
       this.user.set(result.user);
-      if (result.user) await this.initializeSpaces();this.autosaveTimer=setInterval(()=>this.autosaveTick(),1800);
-    } catch (e) { this.showError(e); } finally { this.ready.set(true); }
+      if (result.user) {
+        if (isNativeMobile) await this.refreshMobileAssetToken();
+        await this.initializeSpaces();
+      }
+      this.autosaveTimer=setInterval(()=>this.autosaveTick(),1800);
+    } catch (e) {
+      if (isNativeMobile && !localStorage.getItem('nexo-mobile-token')) {
+        this.user.set(null);
+        this.error.set('');
+      } else {
+        this.showError(e);
+      }
+    } finally { this.ready.set(true); }
   }
   private showError(e: unknown) {
     let message = 'No se pudo completar la operación. Inténtalo nuevamente.';
     if (e instanceof HttpErrorResponse) {
       if (e.status === 401 || e.status === 419) {
+        if (isNativeMobile) {
+          localStorage.removeItem('nexo-mobile-token');
+          localStorage.removeItem('nexo-mobile-asset-token');
+        }
         this.user.set(null); this.clearSpaceData(); this.view.set('board'); this.tasks.set([]); this.selected.set(null); this.password = '';
         message = 'Tu sesión terminó. Vuelve a iniciar sesión.';
         firstValueFrom(this.http.get('/api/session')).catch(() => {});
@@ -197,16 +213,25 @@ export class AppComponent implements OnInit {
     if (this.busy()) return;
     this.busy.set(true); this.error.set('');
     try {
-      await firstValueFrom(this.http.get('/api/session'));
-      const result = await firstValueFrom(this.http.post<{user: User}>('/api/login', {email: this.email, password: this.password}));
+      const result = isNativeMobile
+        ? await firstValueFrom(this.http.post<{user: User; token: string}>('/api/mobile/login', {email: this.email, password: this.password}))
+        : await firstValueFrom(this.http.post<{user: User}>('/api/login', {email: this.email, password: this.password}));
+      const mobileToken = (result as {token?: string}).token;
+      if (isNativeMobile && mobileToken) localStorage.setItem('nexo-mobile-token', mobileToken);
+      if (isNativeMobile) await this.refreshMobileAssetToken();
       this.user.set(result.user); this.password = ''; this.notice.set(''); await this.initializeSpaces();
     } catch (e) { this.showError(e); } finally { this.busy.set(false); }
   }
   async logout() {
     if (this.busy()) return;
     this.busy.set(true);
-    try { await firstValueFrom(this.http.post('/api/logout', {})); this.user.set(null); this.clearSpaceData(); this.tasks.set([]); this.selected.set(null); this.draft = this.emptyDraft(); this.view.set('board'); this.error.set(''); this.notice.set(''); }
+    try { await firstValueFrom(this.http.post('/api/logout', {})); localStorage.removeItem('nexo-mobile-token'); localStorage.removeItem('nexo-mobile-asset-token'); this.user.set(null); this.clearSpaceData(); this.tasks.set([]); this.selected.set(null); this.draft = this.emptyDraft(); this.view.set('board'); this.error.set(''); this.notice.set(''); }
     catch (e) { this.showError(e); } finally { this.busy.set(false); }
+  }
+  private async refreshMobileAssetToken() {
+    if (!isNativeMobile) return;
+    const result = await firstValueFrom(this.http.get<{token:string}>('/api/mobile/asset-token'));
+    localStorage.setItem('nexo-mobile-asset-token', result.token);
   }
   async loadTasks() {
     const generation=this.generation;
