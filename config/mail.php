@@ -39,7 +39,9 @@ return [
 
         'smtp' => [
             'transport' => 'smtp',
-            'scheme' => env('MAIL_SCHEME'),
+            // Laravel 12 uses MAIL_SCHEME, while existing Hostinger setups
+            // commonly use MAIL_ENCRYPTION. Keep both formats compatible.
+            'scheme' => env('MAIL_SCHEME') ?: env('MAIL_ENCRYPTION'),
             'url' => env('MAIL_URL'),
             'host' => env('MAIL_HOST', '127.0.0.1'),
             'port' => env('MAIL_PORT', 2525),
