@@ -240,14 +240,25 @@ class WorkspaceController extends Controller
 
     private function notifyProduction(Task $task): string
     {
-        if ((! $task->notify_on_production && ! $task->notify_message_on_production) || $task->environment !== 'production' || $task->status !== 'done' || $task->production_notified_at || (empty($task->notify_emails) && empty($task->notify_message_emails))) {
+        $emailPending = $task->notify_on_production && count($task->notify_emails ?? []) && ! $task->production_notified_at;
+        $messagePending = $task->notify_message_on_production && count($task->notify_message_emails ?? []) && ! $task->production_message_notified_at;
+        if ((! $emailPending && ! $messagePending) || $task->environment !== 'production' || $task->status !== 'done') {
             return 'not_requested';
         }
         $claimedAt = now();
-        if (! Task::whereKey($task->id)->whereNull('production_notified_at')->update(['production_notified_at' => $claimedAt])) {
+        if ($emailPending && ! Task::whereKey($task->id)->whereNull('production_notified_at')->update(['production_notified_at' => $claimedAt])) {
+            $emailPending = false;
+        } else if ($emailPending) {
+            $task->production_notified_at = $claimedAt;
+        }
+        if ($messagePending && ! Task::whereKey($task->id)->whereNull('production_message_notified_at')->update(['production_message_notified_at' => $claimedAt])) {
+            $messagePending = false;
+        } else if ($messagePending) {
+            $task->production_message_notified_at = $claimedAt;
+        }
+        if (! $emailPending && ! $messagePending) {
             return 'not_requested';
         }
-        $task->production_notified_at = $claimedAt;
         try {
             $title = $task->title;
             $code = 'NX-'.str_pad((string) $task->id, 3, '0', STR_PAD_LEFT);
@@ -288,7 +299,7 @@ class WorkspaceController extends Controller
             $labels = ['client' => 'Cliente', 'project' => 'Proyecto', 'code' => 'Código', 'title' => 'Tarea', 'description' => 'Descripción', 'status' => 'Ambiente/Estado', 'checklist' => 'Checklist', 'attachments' => 'Archivos adjuntos'];
             $body = $intro.(count($details) ? "\n\n".collect($details)->map(fn ($value, $label) => ($labels[$label] ?? ucfirst($label)).': '.(is_array($value) ? "\n".collect($value)->map(fn ($step) => (($step['done'] ?? false) ? '☑' : '☐').' '.($step['text'] ?? ''))->join("\n") : $value))->join("\n\n") : '')."\n\nEste aviso fue enviado automáticamente por Nexo.";
             $html = view('emails.production-completed', compact('intro', 'title', 'code', 'details'))->render();
-            if ($task->notify_on_production && count($task->notify_emails ?? [])) {
+            if ($emailPending) {
                 Mail::send([], [], function ($message) use ($task, $title, $body, $html, $attachments) {
                     $message->to($task->notify_emails)
                         ->subject("{$title} ya está en Producción")
@@ -302,7 +313,7 @@ class WorkspaceController extends Controller
                     }
                 });
             }
-            if ($task->notify_message_on_production && count($task->notify_message_emails ?? [])) {
+            if ($messagePending) {
                 $short = trim($task->notification_message_short ?: "Hola, la tarea {$title} ya terminó en Producción. Revísala cuando puedas 👍");
                 Mail::raw($short, function ($message) use ($task, $title) {
                     $message->to($task->notify_message_emails)->subject("Aviso: {$title} terminó en Producción");
@@ -312,7 +323,7 @@ class WorkspaceController extends Controller
 
             return 'sent';
         } catch (\Throwable $e) {
-            $task->forceFill(['production_notified_at' => null])->saveQuietly();
+            $task->forceFill(['production_notified_at' => null, 'production_message_notified_at' => null])->saveQuietly();
             Log::error('No se pudo enviar la notificación de producción', ['task_id' => $task->id, 'error' => $e->getMessage()]);
 
             return 'failed';
@@ -322,7 +333,7 @@ class WorkspaceController extends Controller
     private function resetProductionNotificationIfNeeded(Task $task): void
     {
         if ($task->environment !== 'production' || $task->status !== 'done') {
-            $task->forceFill(['production_notified_at' => null])->saveQuietly();
+            $task->forceFill(['production_notified_at' => null, 'production_message_notified_at' => null])->saveQuietly();
         }
     }
 
