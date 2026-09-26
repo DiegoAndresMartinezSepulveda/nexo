@@ -32,7 +32,15 @@ class User extends Authenticatable
     protected $hidden = [
         'password',
         'remember_token',
+        'profile_photo_path',
     ];
+
+    public function profilePayload(): array
+    {
+        return $this->only('id', 'name', 'email', 'role') + [
+            'profile_photo_url' => $this->profile_photo_path ? '/api/users/'.$this->id.'/photo' : null,
+        ];
+    }
 
     /**
      * Get the attributes that should be cast.

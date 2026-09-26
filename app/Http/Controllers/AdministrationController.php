@@ -3,7 +3,7 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use App\Support\Spaces;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\{DB,Hash};
+use Illuminate\Support\Facades\{DB,Hash,Storage};
 use Illuminate\Validation\Rule;
 class AdministrationController extends Controller {
  private function admin(Request $r):void{abort_unless($r->user()->role==='admin',403);}
@@ -16,7 +16,7 @@ class AdministrationController extends Controller {
  }
  public function users(Request $r){
   $this->admin($r);
-  return response()->json(User::orderBy('name')->get(['id','name','email','role'])->map(function($u){$u->workspace_ids=DB::table('workspace_user')->where('user_id',$u->id)->pluck('workspace_id');return $u;}));
+  return response()->json(User::orderBy('name')->get(['id','name','email','role','profile_photo_path'])->map(function($u){$u->workspace_ids=DB::table('workspace_user')->where('user_id',$u->id)->pluck('workspace_id');return $u->profilePayload()+['workspace_ids'=>$u->workspace_ids];}));
  }
  public function saveUser(Request $r,?User $user=null){
   $this->admin($r);
@@ -25,7 +25,34 @@ class AdministrationController extends Controller {
   $user??=new User;$ids=array_unique($data['workspace_ids']);unset($data['workspace_ids']);
   if(empty($data['password']))unset($data['password']);else $data['password']=Hash::make($data['password']);
   DB::transaction(function()use($user,$data,$ids){$user->fill($data);$user->role=$data['role'];$user->save();DB::table('workspace_user')->where('user_id',$user->id)->delete();foreach($ids as $id)DB::table('workspace_user')->insert(['user_id'=>$user->id,'workspace_id'=>$id]);DB::table('sessions')->where('user_id',$user->id)->delete();});
- return response()->json($user->only('id','name','email','role'));
+ return response()->json($user->profilePayload());
+ }
+ public function profilePhoto(Request $r,User $user){
+  $viewer=$r->user();
+  abort_unless($viewer->id===$user->id||$viewer->role==='admin',404);
+  abort_unless($user->profile_photo_path&&Storage::disk('local')->exists($user->profile_photo_path),404);
+  $mime=Storage::disk('local')->mimeType($user->profile_photo_path)?:'application/octet-stream';
+  return Storage::disk('local')->response($user->profile_photo_path,'profile-'.$user->id,['Content-Type'=>$mime,'X-Content-Type-Options'=>'nosniff','Cache-Control'=>'private, no-store','Content-Security-Policy'=>"default-src 'none'; sandbox"],'inline');
+ }
+ public function saveProfilePhoto(Request $r,User $user){
+  $viewer=$r->user();
+  abort_unless($viewer->id===$user->id||$viewer->role==='admin',403);
+  $data=$r->validate(['photo'=>'required|image|mimes:jpg,jpeg,png,webp|max:5120'],['photo.required'=>'Selecciona una imagen.','photo.image'=>'El archivo debe ser una imagen.','photo.mimes'=>'Usa una imagen JPG, PNG o WEBP.','photo.max'=>'La foto debe pesar como máximo 5 MB.']);
+  $oldPath=$user->profile_photo_path;
+  $newPath=$data['photo']->store('profile-photos/'.$user->id,'local');
+  $user->profile_photo_path=$newPath;
+  $user->save();
+  if($oldPath)Storage::disk('local')->delete($oldPath);
+  return response()->json($user->profilePayload());
+ }
+ public function deleteProfilePhoto(Request $r,User $user){
+  $viewer=$r->user();
+  abort_unless($viewer->id===$user->id||$viewer->role==='admin',403);
+  $path=$user->profile_photo_path;
+  $user->profile_photo_path=null;
+  $user->save();
+  if($path)Storage::disk('local')->delete($path);
+  return response()->noContent();
  }
  public function notificationContacts(Request $r){
   return response()->json(DB::table('notification_contacts')->where('workspace_id',Spaces::id())->orderBy('channel')->orderBy('name')->get());

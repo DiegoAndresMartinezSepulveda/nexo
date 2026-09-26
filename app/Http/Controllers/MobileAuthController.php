@@ -28,7 +28,7 @@ class MobileAuthController extends Controller
         }
 
         return response()->json([
-            'user' => $user->only('id', 'name', 'email', 'role'),
+            'user' => $user->profilePayload(),
             'token' => $user->createToken('nexo-android')->plainTextToken,
         ]);
     }
@@ -36,7 +36,7 @@ class MobileAuthController extends Controller
     public function session(Request $request)
     {
         return response()->json([
-            'user' => $request->user()->only('id', 'name', 'email', 'role'),
+            'user' => $request->user()->profilePayload(),
         ]);
     }
 

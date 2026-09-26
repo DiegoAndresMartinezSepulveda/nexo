@@ -13,7 +13,7 @@ class MobileAssetToken
 {
     public function handle(Request $request, Closure $next)
     {
-        if (! $request->is('api/media/*') && ! $request->is('api/attachments/*')) {
+        if (! $request->is('api/media/*') && ! $request->is('api/attachments/*') && ! $request->is('api/users/*/photo')) {
             return $next($request);
         }
 

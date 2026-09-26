@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Route;
 
 // Stateful JSON API: web middleware provides sessions and CSRF protection.
 Route::prefix('api')->group(function () {
-    Route::get('/session', fn (Request $r) => response()->json(['user' => $r->user()?->only('id', 'name', 'email', 'role')]));
+    Route::get('/session', fn (Request $r) => response()->json(['user' => $r->user()?->profilePayload()]));
     Route::post('/login', [Workspace::class, 'login'])->middleware('throttle:5,1')->name('login');
     Route::post('/mobile/login', [MobileAuthController::class, 'login'])->middleware('throttle:5,1');
     // Resolve short-lived native asset links before Sanctum authenticates the
@@ -27,6 +27,9 @@ Route::prefix('api')->group(function () {
         Route::get('/users', [AdministrationController::class, 'users']);
         Route::post('/users', [AdministrationController::class, 'saveUser']);
         Route::put('/users/{user}', [AdministrationController::class, 'saveUser']);
+        Route::get('/users/{user}/photo', [AdministrationController::class, 'profilePhoto']);
+        Route::post('/users/{user}/photo', [AdministrationController::class, 'saveProfilePhoto'])->middleware('throttle:30,1');
+        Route::delete('/users/{user}/photo', [AdministrationController::class, 'deleteProfilePhoto']);
         Route::middleware(WorkspaceAccess::class)->group(function () {
             Route::get('/catalog', [Content::class, 'catalog']);
             Route::post('/catalog/{kind}', [Content::class, 'saveCatalog']);

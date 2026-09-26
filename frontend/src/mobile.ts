@@ -9,7 +9,8 @@ export function apiUrl(url: string): string {
 }
 
 export function assetUrl(url: string): string {
-  if (!isNativeMobile || !url.startsWith('/api/')) return url;
+  const isUserPhoto = /^\/api\/users\/\d+\/photo(?:\?|$)/.test(url);
+  if (!isNativeMobile || (!url.startsWith('/api/media/') && !url.startsWith('/api/attachments/') && !isUserPhoto)) return url;
 
   const token = localStorage.getItem('nexo-mobile-asset-token');
   const separator = url.includes('?') ? '&' : '?';

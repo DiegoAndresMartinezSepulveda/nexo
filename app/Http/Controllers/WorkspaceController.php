@@ -29,7 +29,7 @@ class WorkspaceController extends Controller
 
         $r->session()->regenerate();
 
-        return response()->json(['user' => $r->user()->only('id', 'name', 'email', 'role')]);
+        return response()->json(['user' => $r->user()->profilePayload()]);
 
     }
 
