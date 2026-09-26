@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class MobileAuthenticationTest extends TestCase
@@ -38,5 +40,27 @@ class MobileAuthenticationTest extends TestCase
         $this->withHeader('Authorization', 'Bearer '.$token)
             ->getJson('/api/mobile/session')
             ->assertUnauthorized();
+    }
+
+    public function test_android_image_link_uses_a_short_lived_token_without_a_bearer_header(): void
+    {
+        Storage::fake('local');
+        $user = User::factory()->create();
+        $token = $user->createToken('nexo-android')->plainTextToken;
+        $png = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6mS8AAAAASUVORK5CYII=');
+
+        $this->withHeader('Authorization', 'Bearer '.$token);
+        $id = $this->post('/api/media', [
+            'file' => UploadedFile::fake()->createWithContent('captura.png', $png),
+        ], ['Accept' => 'application/json'])->assertCreated()->json('id');
+        $assetToken = $this->getJson('/api/mobile/asset-token')->assertOk()->json('token');
+
+        $this->flushHeaders();
+        $this->get('/api/media/'.$id.'?preview=1&asset_token=invalid', [
+            'Accept' => 'application/json',
+        ])->assertUnauthorized();
+        $this->get('/api/media/'.$id.'?preview=1&asset_token='.$assetToken)
+            ->assertOk()
+            ->assertHeader('Content-Type', 'image/png');
     }
 }

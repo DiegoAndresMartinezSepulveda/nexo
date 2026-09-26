@@ -4,7 +4,9 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
+use Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests;
 use App\Http\Middleware\VerifyCsrfToken as NexoVerifyCsrfToken;
+use App\Http\Middleware\MobileAssetToken;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -14,6 +16,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->replaceInGroup('web', ValidateCsrfToken::class, NexoVerifyCsrfToken::class);
+        $middleware->prependToPriorityList(AuthenticatesRequests::class, MobileAssetToken::class);
         $middleware->validateCsrfTokens(except: ['api/mobile/login']);
     })
     ->withExceptions(function (Exceptions $exceptions) {
