@@ -67,8 +67,18 @@ export class AppComponent implements OnInit {
   previewMedia=signal<Media|null>(null);
   nav=[['dashboard','grid','Inicio'],['board','columns','Tablero'],['notes','note','Notas importantes'],['library','folder','Biblioteca'],['diagrams','layers','Diagramas']];
   management=[['clients','users','Clientes'],['projects','layers','Proyectos'],['history','history','Historial']];
+  sidebarPreferences=[{key:'dashboard',label:'Inicio',icon:'grid',description:'Resumen del espacio'},{key:'board',label:'Tablero',icon:'columns',description:'Tareas y estados'},{key:'notes',label:'Notas importantes',icon:'note',description:'Ideas y listas personales'},{key:'library',label:'Biblioteca',icon:'folder',description:'Archivos y referencias'},{key:'diagrams',label:'Diagramas',icon:'layers',description:'Pizarras y diagramas'},{key:'clients',label:'Clientes',icon:'users',description:'Directorio de clientes'},{key:'projects',label:'Proyectos',icon:'layers',description:'Proyectos por cliente'},{key:'history',label:'Historial',icon:'history',description:'Actividad reciente'},{key:'spaces',label:'Espacios',icon:'layers',description:'Administrar espacios',adminOnly:true},{key:'users',label:'Usuarios',icon:'users',description:'Personas y permisos',adminOnly:true}];
+  sidebarVisibility=signal<Record<string,boolean>>({});
   pageNames:Record<string,string>={dashboard:'Inicio',board:'Tablero',notes:'Notas importantes',library:'Biblioteca',clients:'Clientes',projects:'Proyectos',history:'Historial',diagrams:'Diagramas',users:'Usuarios',spaces:'Espacios',reading:'Lectura',taskreading:'Lectura de tarea',settings:'Preferencias',detail:'Requerimiento',entry:'Editor'};
   get currentTitle(){return this.pageNames[this.view()]||'Mi espacio';}
+  private sidebarPreferenceStorageKey(userId:number){return `nexo-sidebar-menu:${userId}`;}
+  loadSidebarPreferences(userId:number){let stored:Record<string,boolean>={};try{stored=JSON.parse(localStorage.getItem(this.sidebarPreferenceStorageKey(userId))||'{}')||{};}catch{}this.sidebarVisibility.set(Object.fromEntries(this.sidebarPreferences.map(item=>[item.key,stored[item.key]!==false])));}
+  sidebarItemVisible(key:string){return this.sidebarVisibility()[key]!==false;}
+  setSidebarItemVisible(key:string,visible:boolean){const next={...this.sidebarVisibility(),[key]:visible};this.sidebarVisibility.set(next);const userId=this.user()?.id;if(userId)localStorage.setItem(this.sidebarPreferenceStorageKey(userId),JSON.stringify(next));}
+  resetSidebarPreferences(){const defaults=Object.fromEntries(this.sidebarPreferences.map(item=>[item.key,true]));this.sidebarVisibility.set(defaults);const userId=this.user()?.id;if(userId)localStorage.setItem(this.sidebarPreferenceStorageKey(userId),JSON.stringify(defaults));}
+  visibleNav(){return this.nav.filter(([key])=>this.sidebarItemVisible(key));}
+  visibleManagement(){return this.management.filter(([key])=>this.sidebarItemVisible(key));}
+  visibleAdminItems(){return this.isAdmin()?[['spaces','layers','Espacios'],['users','users','Usuarios']].filter(([key])=>this.sidebarItemVisible(key)):[];}
   allowedStatuses(env:string){return this.statuses.filter(s=>env==='backlog'?s[0]==='pending':['certification','qa','production'].includes(env)?['review','done'].includes(s[0]):['development','review','done'].includes(s[0]));}
   defaultStatus(env:string,wanted='development'){return this.allowedStatuses(env).some(s=>s[0]===wanted)?wanted:'review';}
   taskEnvironmentChanged(){this.draft.status=this.defaultStatus(this.draft.environment,this.draft.status);}
@@ -176,6 +186,7 @@ export class AppComponent implements OnInit {
       const result = await firstValueFrom(this.http.get<{user: User | null}>(isNativeMobile ? '/api/mobile/session' : '/api/session'));
       this.user.set(result.user);
       if (result.user) {
+        this.loadSidebarPreferences(result.user.id);
         if (isNativeMobile) await this.refreshMobileAssetToken();
         await this.initializeSpaces();
       }
@@ -220,7 +231,7 @@ export class AppComponent implements OnInit {
       const mobileToken = (result as {token?: string}).token;
       if (isNativeMobile && mobileToken) localStorage.setItem('nexo-mobile-token', mobileToken);
       if (isNativeMobile) await this.refreshMobileAssetToken();
-      this.user.set(result.user); this.password = ''; this.notice.set(''); await this.initializeSpaces();
+      this.user.set(result.user); this.loadSidebarPreferences(result.user.id); this.password = ''; this.notice.set(''); await this.initializeSpaces();
     } catch (e) { this.showError(e); } finally { this.busy.set(false); }
   }
   async logout() {

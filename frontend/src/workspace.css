@@ -136,3 +136,17 @@
 .entry-card:not(.library-card) .color-swatches button.current{transform:scale(1.18)}
 .rich-area .note-task-label.checked,.reading-text .note-task-label.checked{text-decoration:line-through;opacity:.62}
 .entry-bottom-spacer{flex:1}
+
+/* Per-user sidebar visibility controls in preferences */
+.sidebar-settings{margin-top:18px}
+.sidebar-settings .section-header{margin-bottom:16px}
+.sidebar-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.sidebar-option{display:flex;align-items:center;gap:12px;padding:13px 14px;border:1px solid var(--line);border-radius:10px;background:var(--surface-alt);cursor:pointer;transition:border-color .16s,background .16s,opacity .16s}
+.sidebar-option:hover{border-color:var(--accent)}
+.sidebar-option>input{width:19px;height:19px;flex-shrink:0;accent-color:var(--accent)}
+.sidebar-option>app-icon{padding:7px;box-sizing:content-box;border-radius:9px;background:var(--accent-soft);color:var(--accent)}
+.sidebar-option>span{display:grid;gap:3px}
+.sidebar-option strong{font-size:13px}
+.sidebar-option small{font-size:11px;color:var(--muted)}
+.sidebar-settings .field-help{margin-top:13px}
+@media(max-width:700px){.sidebar-options{grid-template-columns:1fr}}
