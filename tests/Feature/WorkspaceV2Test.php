@@ -89,10 +89,10 @@ class WorkspaceV2Test extends TestCase
         $id = $this->postJson('/api/tasks', $payload)->assertCreated()->assertJsonPath('is_fire', true)->assertJsonPath('description_blocks.0.html', '<h2>Objetivo</h2><ul><li>Corregir</li></ul>')->json('id');
         $this->patchJson("/api/tasks/$id/move", ['environment' => 'certification', 'status' => 'development'])->assertUnprocessable();
         $this->patchJson("/api/tasks/$id/move", ['environment' => 'certification', 'status' => 'review'])->assertOk();
-        $this->patchJson("/api/tasks/$id/status", ['status' => 'done'])->assertUnprocessable();
+        $this->patchJson("/api/tasks/$id/status", ['status' => 'done'])->assertOk();
         $this->patchJson("/api/tasks/$id/move", ['environment' => 'production', 'status' => 'done'])->assertOk();
         $this->patchJson("/api/tasks/$id/move", ['environment' => 'qa', 'status' => 'pending'])->assertUnprocessable();
-        $this->patchJson("/api/tasks/$id/move", ['environment' => 'development', 'status' => 'pending'])->assertOk();
+        $this->patchJson("/api/tasks/$id/move", ['environment' => 'development', 'status' => 'pending'])->assertUnprocessable();
         $this->putJson('/api/tasks/'.$id, $payload + ['client_id' => null])->assertOk()->assertJsonPath('notes_blocks.0.html', '<b>Revisar</b>');
     }
 
