@@ -16,7 +16,23 @@ DOMPurify.addHook('uponSanitizeAttribute',(_node,data)=>{
   const allowed=['color','background-color','font-size','font-family','text-align','font-weight','font-style','text-decoration'];
   data.attrValue=allowed.map(p=>{const v=style.getPropertyValue(p);return v&&!/url|expression|var\(|@|\\/i.test(v)?`${p}:${v}`:'';}).filter(Boolean).join(';');
 });
-export function cleanHTML(html:string) { return DOMPurify.sanitize(html,{ALLOWED_TAGS:tags,ALLOWED_ATTR:['style','color','size','face','class'],ALLOW_DATA_ATTR:false,ALLOW_ARIA_ATTR:false}); }
+export function cleanHTML(html:string) {
+  const clean=DOMPurify.sanitize(html,{ALLOWED_TAGS:tags,ALLOWED_ATTR:['style','color','size','face','class'],ALLOW_DATA_ATTR:false,ALLOW_ARIA_ATTR:false});
+  const container=document.createElement('div');container.innerHTML=clean;
+  container.querySelectorAll('ul.rich-checklist li').forEach(item=>{
+    if(item.querySelector('.note-task-box'))return;
+    const first=item.firstChild;
+    if(first?.nodeType!==Node.TEXT_NODE)return;
+    const match=/^([☐☑])\s*/.exec(first.textContent||'');
+    if(!match)return;
+    first.textContent=(first.textContent||'').slice(match[0].length);
+    const mark=document.createElement('span');mark.className='note-task-box'+(match[1]==='☑'?' checked':'');mark.textContent=match[1];
+    const label=document.createElement('span');label.className='note-task-label'+(match[1]==='☑'?' checked':'');
+    while(item.firstChild)label.appendChild(item.firstChild);
+    item.replaceChildren(mark,document.createTextNode(' '),label);
+  });
+  return container.innerHTML;
+}
 @Pipe({name:'safeNote',standalone:true})
 export class SafeNotePipe implements PipeTransform {
   private sanitizer=inject(DomSanitizer);
