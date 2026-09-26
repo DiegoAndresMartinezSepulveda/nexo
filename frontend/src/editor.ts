@@ -6,6 +6,7 @@ import {DomSanitizer} from '@angular/platform-browser';
 import {firstValueFrom} from 'rxjs';
 import DOMPurify from 'dompurify';
 import {assetUrl} from './mobile';
+import {ButtonHintDirective} from './button-hint';
 
 export type Block = {type:'text'|'image'; text?:string; html?:string; media_id?:number; caption?:string};
 export type Media = {id:number; name:string; mime:string; size:number};
@@ -38,7 +39,7 @@ export class SafeNotePipe implements PipeTransform {
   private sanitizer=inject(DomSanitizer);
   transform(html:string) { return this.sanitizer.bypassSecurityTrustHtml(cleanHTML(html)); }
 }
-@Component({selector:'app-modal',standalone:true,template:`<dialog #dialog [class.fullscreen-dialog]="fullscreen" (cancel)="cancel($event)" (click)="outside($event)"><div class="modal-heading"><h2>{{title}}</h2><button type="button" class="icon-button" (click)="closed.emit()" aria-label="Cerrar ventana">×</button></div><ng-content></ng-content></dialog>`})
+@Component({selector:'app-modal',standalone:true,imports:[ButtonHintDirective],template:`<dialog #dialog [class.fullscreen-dialog]="fullscreen" (cancel)="cancel($event)" (click)="outside($event)"><div class="modal-heading"><h2>{{title}}</h2><button type="button" class="icon-button" (click)="closed.emit()" aria-label="Cerrar ventana">×</button></div><ng-content></ng-content></dialog>`})
 export class ModalComponent implements AfterViewInit {
   @Input() fullscreen=false; @Input() title=''; @Output() closed=new EventEmitter<void>(); @ViewChild('dialog') dialog!:ElementRef<HTMLDialogElement>;
   ngAfterViewInit(){this.dialog.nativeElement.showModal();}
@@ -79,7 +80,7 @@ export class RichTextComponent implements AfterViewInit {
     this.changed();
   }
 }
-@Component({selector:'app-note-editor',standalone:true,imports:[CommonModule,FormsModule,RichTextComponent,ModalComponent],template:`
+@Component({selector:'app-note-editor',standalone:true,imports:[CommonModule,FormsModule,RichTextComponent,ModalComponent,ButtonHintDirective],template:`
   <div class="note-editor" (dragover)="$event.preventDefault()" (drop)="drop($event)" [class.uploading]="uploading()">
     @for(block of blocks;track block;let i=$index){
       <div class="editor-block">
@@ -102,7 +103,7 @@ export class NoteEditorComponent {
   publish(){this.blocksChange.emit([...this.blocks]);}
   edit(block:Block,value:{html:string;text:string}){Object.assign(block,value);this.publish();}
   addText(){this.blocks=[...this.blocks,{type:'text',text:''}];this.publish();}
-  remove(i:number){this.blocks=this.blocks.filter((_,n)=>i!==n);this.publish();}
+  remove(i:number){const block=this.blocks[i];if(!block||!confirm(block.type==='image'?'¿Quitar esta imagen? Al guardar, se eliminará del recurso.':'¿Quitar este bloque de texto y su contenido?'))return;this.blocks=this.blocks.filter((_,n)=>i!==n);this.publish();}
   pick(event:Event){const input=event.target as HTMLInputElement;this.upload(Array.from(input.files||[]));input.value='';}
   drop(event:DragEvent){event.preventDefault();this.upload(Array.from(event.dataTransfer?.files||[]));}
   async upload(files:File[],after?:number){
