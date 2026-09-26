@@ -1,0 +1,761 @@
+{
+  "info": {
+    "name": "Nexo · API privada",
+    "description": "Colección segura para probar la API JSON de Nexo. No contiene credenciales. Usa cookies de sesión Laravel; ejecuta 01 y luego 02 antes de las peticiones protegidas.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "const xsrf = pm.cookies.get('XSRF-TOKEN');",
+          "if (xsrf) {",
+          "  pm.request.headers.upsert({ key: 'X-XSRF-TOKEN', value: decodeURIComponent(xsrf) });",
+          "}"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "https://diegomartinezsepulveda.cl"
+    },
+    {
+      "key": "workspace_id",
+      "value": ""
+    },
+    {
+      "key": "task_id",
+      "value": ""
+    },
+    {
+      "key": "entry_id",
+      "value": ""
+    },
+    {
+      "key": "user_id",
+      "value": ""
+    },
+    {
+      "key": "environment",
+      "value": "backlog"
+    },
+    {
+      "key": "entry_kind",
+      "value": "note"
+    },
+    {
+      "key": "email",
+      "value": ""
+    },
+    {
+      "key": "password",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "01 · Sesión / obtener cookies",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/session",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "session"
+          ]
+        },
+        "description": "Ejecuta esta petición antes de iniciar sesión para que Postman reciba la cookie XSRF-TOKEN."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('La sesión responde', () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 · Iniciar sesión",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/login",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "login"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const xsrf = pm.cookies.get('XSRF-TOKEN');",
+              "if (xsrf) {",
+              "  pm.request.headers.upsert({ key: 'X-XSRF-TOKEN', value: decodeURIComponent(xsrf) });",
+              "}"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Login correcto', () => pm.response.to.have.status(200));",
+              "const data = pm.response.json();",
+              "if (data.user) pm.environment.set('user_id', String(data.user.id));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 · Mis espacios",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/workspaces",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "workspaces"
+          ]
+        },
+        "description": "Guarda automáticamente el primer espacio en workspace_id. Si necesitas otro, cambia esa variable manualmente."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Espacios disponibles', () => pm.response.to.have.status(200));",
+              "const spaces = pm.response.json();",
+              "if (Array.isArray(spaces) && spaces[0]) pm.environment.set('workspace_id', String(spaces[0].id));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 · Catálogo de clientes y proyectos",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Workspace-ID",
+            "value": "{{workspace_id}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/catalog",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "catalog"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Catálogo disponible', () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 · Listar tareas",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Workspace-ID",
+            "value": "{{workspace_id}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/tasks?environment={{environment}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "tasks?environment={{environment}}"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Tareas disponibles', () => pm.response.to.have.status(200));",
+              "const data = pm.response.json();",
+              "if (data.tasks && data.tasks[0]) pm.environment.set('task_id', String(data.tasks[0].id));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 · Crear tarea de prueba (opcional)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Workspace-ID",
+            "value": "{{workspace_id}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/tasks",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "tasks"
+          ]
+        },
+        "description": "No la ejecutes en producción si no quieres crear una tarea. Usa autosave=true y notificaciones desactivadas.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"title\": \"Prueba desde Postman\",\n  \"description\": \"Tarea de prueba. Puedes eliminarla después.\",\n  \"description_blocks\": [\n    {\n      \"type\": \"text\",\n      \"html\": \"<p>Prueba creada desde la colección de Postman.</p>\"\n    }\n  ],\n  \"notes_blocks\": [],\n  \"environment\": \"backlog\",\n  \"status\": \"pending\",\n  \"priority\": \"normal\",\n  \"task_type\": \"task\",\n  \"is_fire\": false,\n  \"client_id\": null,\n  \"project_id\": null,\n  \"checklist_text\": \"Validar respuesta de la API\\nEliminar esta tarea de prueba\",\n  \"tags\": \"postman,prueba\",\n  \"autosave\": true,\n  \"notify_on_production\": false,\n  \"notify_emails\": \"\",\n  \"notification_message\": \"\",\n  \"notify_message_on_production\": false,\n  \"notify_message_emails\": \"\",\n  \"notification_message_short\": \"\",\n  \"notify_include_client\": false,\n  \"notify_include_project\": false,\n  \"notify_include_title\": true,\n  \"notify_include_description\": false,\n  \"notify_include_code\": false,\n  \"notify_include_status\": true,\n  \"notify_include_checklist\": false\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const xsrf = pm.cookies.get('XSRF-TOKEN');",
+              "if (xsrf) {",
+              "  pm.request.headers.upsert({ key: 'X-XSRF-TOKEN', value: decodeURIComponent(xsrf) });",
+              "}"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Tarea creada', () => pm.response.to.have.status(201));",
+              "const task = pm.response.json();",
+              "if (task.id) pm.environment.set('task_id', String(task.id));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 · Ver una tarea",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Workspace-ID",
+            "value": "{{workspace_id}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/tasks/{{task_id}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "tasks",
+            "{{task_id}}"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Tarea accesible', () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "08 · Mover tarea a desarrollo",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Workspace-ID",
+            "value": "{{workspace_id}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/tasks/{{task_id}}/move",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "tasks",
+            "{{task_id}}",
+            "move"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"environment\": \"development\",\n  \"status\": \"development\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const xsrf = pm.cookies.get('XSRF-TOKEN');",
+              "if (xsrf) {",
+              "  pm.request.headers.upsert({ key: 'X-XSRF-TOKEN', value: decodeURIComponent(xsrf) });",
+              "}"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Tarea movida', () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "09 · Cambiar estado",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Workspace-ID",
+            "value": "{{workspace_id}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/tasks/{{task_id}}/status",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "tasks",
+            "{{task_id}}",
+            "status"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"review\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const xsrf = pm.cookies.get('XSRF-TOKEN');",
+              "if (xsrf) {",
+              "  pm.request.headers.upsert({ key: 'X-XSRF-TOKEN', value: decodeURIComponent(xsrf) });",
+              "}"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Estado actualizado', () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10 · Marcar checklist",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Workspace-ID",
+            "value": "{{workspace_id}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/tasks/{{task_id}}/checklist",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "tasks",
+            "{{task_id}}",
+            "checklist"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"index\": 0,\n  \"done\": true\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const xsrf = pm.cookies.get('XSRF-TOKEN');",
+              "if (xsrf) {",
+              "  pm.request.headers.upsert({ key: 'X-XSRF-TOKEN', value: decodeURIComponent(xsrf) });",
+              "}"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Checklist actualizado', () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "11 · Listar notas, biblioteca o diagramas",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Workspace-ID",
+            "value": "{{workspace_id}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/entries?kind={{entry_kind}}&archived=0",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "entries?kind={{entry_kind}}&archived=0"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Entradas disponibles', () => pm.response.to.have.status(200));",
+              "const entries = pm.response.json();",
+              "if (Array.isArray(entries) && entries[0]) pm.environment.set('entry_id', String(entries[0].id));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "12 · Crear nota de prueba (opcional)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Workspace-ID",
+            "value": "{{workspace_id}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/entries",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "entries"
+          ]
+        },
+        "description": "Petición opcional: crea una nota real en el espacio seleccionado.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"kind\": \"note\",\n  \"title\": \"Nota de prueba Postman\",\n  \"color\": \"blue\",\n  \"pinned\": false,\n  \"archived\": false,\n  \"blocks\": [\n    {\n      \"type\": \"text\",\n      \"html\": \"<p>Nota creada desde Postman.</p>\"\n    }\n  ],\n  \"client_id\": null,\n  \"project_id\": null,\n  \"tags\": []\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const xsrf = pm.cookies.get('XSRF-TOKEN');",
+              "if (xsrf) {",
+              "  pm.request.headers.upsert({ key: 'X-XSRF-TOKEN', value: decodeURIComponent(xsrf) });",
+              "}"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Nota creada', () => pm.response.to.have.status(201));",
+              "const entry = pm.response.json();",
+              "if (entry.id) pm.environment.set('entry_id', String(entry.id));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "13 · Historial del espacio",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Workspace-ID",
+            "value": "{{workspace_id}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/history?page=1",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "history?page=1"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Historial disponible', () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "14 · Cerrar sesión",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/logout",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "logout"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const xsrf = pm.cookies.get('XSRF-TOKEN');",
+              "if (xsrf) {",
+              "  pm.request.headers.upsert({ key: 'X-XSRF-TOKEN', value: decodeURIComponent(xsrf) });",
+              "}"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Sesión cerrada', () => pm.response.to.have.status(204));"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
