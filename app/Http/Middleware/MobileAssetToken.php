@@ -31,6 +31,11 @@ class MobileAssetToken
         abort_unless($user, 401, 'El enlace del archivo expiró.');
 
         Auth::setUser($user);
+        // Asset URLs are requested by <img>/<a> from the native WebView, so
+        // they cannot carry the Bearer header used by Angular's HttpClient.
+        // Seed the Sanctum request guard as well; otherwise auth:sanctum runs
+        // after this middleware and rejects the otherwise valid asset token.
+        Auth::guard('sanctum')->setUser($user);
         $request->setUserResolver(fn () => $user);
 
         return $next($request);
