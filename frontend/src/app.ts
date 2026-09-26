@@ -65,9 +65,9 @@ export class AppComponent implements OnInit {
   catalogKind:'clients'|'projects'='clients';catalogId:number|null=null;catalogDraft={name:'',code:'',description:'',client_id:''};catalogModal=signal(false);
   moveTask=signal<Task|null>(null);moveEnvironment='local';moveStatus='development';moveReason='';dragOver=signal('');
   previewMedia=signal<Media|null>(null);
-  nav=[['dashboard','grid','Inicio'],['board','columns','Tablero'],['bugs','spark','Bugs'],['notes','note','Notas importantes'],['library','folder','Biblioteca'],['diagrams','layers','Diagramas']];
+  nav=[['dashboard','grid','Inicio'],['board','columns','Tablero'],['notes','note','Notas importantes'],['library','folder','Biblioteca'],['diagrams','layers','Diagramas']];
   management=[['clients','users','Clientes'],['projects','layers','Proyectos'],['history','history','Historial']];
-  pageNames:Record<string,string>={dashboard:'Inicio',board:'Tablero',bugs:'Bugs',notes:'Notas importantes',library:'Biblioteca',clients:'Clientes',projects:'Proyectos',history:'Historial',diagrams:'Diagramas',users:'Usuarios',spaces:'Espacios',reading:'Lectura',taskreading:'Lectura de tarea',settings:'Preferencias',detail:'Requerimiento',entry:'Editor'};
+  pageNames:Record<string,string>={dashboard:'Inicio',board:'Tablero',notes:'Notas importantes',library:'Biblioteca',clients:'Clientes',projects:'Proyectos',history:'Historial',diagrams:'Diagramas',users:'Usuarios',spaces:'Espacios',reading:'Lectura',taskreading:'Lectura de tarea',settings:'Preferencias',detail:'Requerimiento',entry:'Editor'};
   get currentTitle(){return this.pageNames[this.view()]||'Mi espacio';}
   allowedStatuses(env:string){return this.statuses.filter(s=>env==='backlog'?s[0]==='pending':['certification','qa','production'].includes(env)?['review','done'].includes(s[0]):['development','review','done'].includes(s[0]));}
   defaultStatus(env:string,wanted='development'){return this.allowedStatuses(env).some(s=>s[0]===wanted)?wanted:'review';}
@@ -102,7 +102,7 @@ export class AppComponent implements OnInit {
   async navigate(page:string){
     if(this.busy()||this.pageLoading()||this.uploadBusy()||this.attachmentBusy())return;
     this.mobileOpen.set(false);this.error.set('');this.notice.set('');this.view.set(page);this.pageLoading.set(true);window.scrollTo(0,0);
-    try{if(page==='dashboard')await this.loadWorkspace();if(page==='board'||page==='bugs')await this.loadTasks();if(['notes','library','diagrams'].includes(page)){this.archived=false;await this.loadEntries(this.kindForView());}if(page==='history')await this.loadHistory();if(page==='users')await this.loadUsers();if(page==='settings')await this.loadNotificationContacts();}finally{this.pageLoading.set(false);}
+    try{if(page==='dashboard')await this.loadWorkspace();if(page==='board')await this.loadTasks();if(['notes','library','diagrams'].includes(page)){this.archived=false;await this.loadEntries(this.kindForView());}if(page==='history')await this.loadHistory();if(page==='users')await this.loadUsers();if(page==='settings')await this.loadNotificationContacts();}finally{this.pageLoading.set(false);}
   }
   kindForView():'note'|'library'|'diagram'{return this.view()==='notes'?'note':this.view()==='diagrams'?'diagram':'library';}
   entryList(){return this.activeKind==='note'?'notes':this.activeKind==='diagram'?'diagrams':'library';}
@@ -250,12 +250,9 @@ export class AppComponent implements OnInit {
   complete(task: Task) { return (task.checklist || []).filter(step => step.done).length; }
   overdue(task: Task) { return !!task.due_date && task.status !== 'done' && task.due_date.slice(0, 10) < [new Date().getFullYear(), String(new Date().getMonth() + 1).padStart(2, '0'), String(new Date().getDate()).padStart(2, '0')].join('-'); }
   taskCode(id: number) { return `NX-${String(id).padStart(3, '0')}`; }
-  bugCode(id:number){return `BUG-${String(id).padStart(3,'0')}`;}
-  bugsBy(statuses:string[]){const q=this.query.toLocaleLowerCase();return this.tasks().filter(t=>(t.task_type||'task')==='bug'&&statuses.includes(t.status)&&(!this.taskTag||(t.tags||[]).includes(this.taskTag))&&(!q||(t.title+' '+(t.description||'')+' '+(t.tags||[]).join(' ')).toLocaleLowerCase().includes(q)));}
-  newBug(){this.newTask('pending','bug');}
-  newTask(status = 'pending',type:'task'|'bug'='task') {
+  newTask(status = 'pending') {
     if(!this.canEdit()||this.pageLoading())return;
-    this.selected.set(null); this.draft = {...this.emptyDraft(),notify_emails:this.defaultRecipients('email'),notify_message_emails:this.defaultRecipients('message'),task_type:type, status: this.groupBy()==='status'?status:'pending', environment:this.groupBy()==='environment'&&this.environmentLabels[status]?status:'backlog'};this.taskDescriptionBlocks=[{type:'text',text:''}]; this.taskBlocks=[{type:'text',text:''}]; this.draft.status=this.defaultStatus(this.draft.environment,this.draft.status); this.files = []; this.view.set('detail'); this.error.set(''); this.notice.set(''); window.scrollTo(0, 0);
+    this.selected.set(null); this.draft = {...this.emptyDraft(),notify_emails:this.defaultRecipients('email'),notify_message_emails:this.defaultRecipients('message'),task_type:'task', status: this.groupBy()==='status'?status:'pending', environment:this.groupBy()==='environment'&&this.environmentLabels[status]?status:'backlog'};this.taskDescriptionBlocks=[{type:'text',text:''}]; this.taskBlocks=[{type:'text',text:''}]; this.draft.status=this.defaultStatus(this.draft.environment,this.draft.status); this.files = []; this.view.set('detail'); this.error.set(''); this.notice.set(''); window.scrollTo(0, 0);
   }
   async openTask(task: Task) {
     if (this.busy()) return;
