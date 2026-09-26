@@ -37,7 +37,8 @@ class LoginProtection
             'errors' => ['ip' => [$message]],
             'blocked' => true,
             'retry_after' => $retryAfter,
-        ], 429)->header('Retry-After', (string) $retryAfter);
+        ], 429)->header('Retry-After', (string) $retryAfter)
+            ->header('Cache-Control', 'no-store, private');
     }
 
     public function verifyCaptchaIfRequired(Request $request): bool
@@ -71,7 +72,7 @@ class LoginProtection
                 'message' => 'Demasiados intentos fallidos. Vuelve a probar más tarde.',
                 'blocked' => true,
                 'retry_after' => self::BLOCK_SECONDS,
-            ], 429);
+            ], 429)->header('Cache-Control', 'no-store, private');
         }
 
         $response = [
@@ -83,7 +84,7 @@ class LoginProtection
             $response += $this->newCaptcha($request);
         }
 
-        return response()->json($response, 422);
+        return response()->json($response, 422)->header('Cache-Control', 'no-store, private');
     }
 
     public function succeeded(Request $request): void

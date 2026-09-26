@@ -40,14 +40,14 @@ class MobileAuthController extends Controller
         return response()->json([
             'user' => $user->profilePayload(),
             'token' => $user->createToken('nexo-android')->plainTextToken,
-        ]);
+        ])->header('Cache-Control', 'no-store, private');
     }
 
     public function session(Request $request)
     {
         return response()->json([
             'user' => $request->user()->profilePayload(),
-        ]);
+        ])->header('Cache-Control', 'no-store, private');
     }
 
     public function assetToken(Request $request)

@@ -69,7 +69,19 @@ class LoginProtectionTest extends TestCase
             'password' => 'UnaClaveSegura123!',
             'captcha_id' => $challenge['captcha_id'],
             'captcha_answer' => (string) ((int) $numbers[1] + (int) $numbers[2]),
-        ])->assertOk()->assertJsonPath('user.id', $user->id)->assertJsonStructure(['token']);
+        ])->assertOk()->assertHeader('Cache-Control', 'no-store, private')
+            ->assertJsonPath('user.id', $user->id)->assertJsonStructure(['token']);
+    }
+
+    public function test_mobile_access_tokens_expire_after_thirty_days(): void
+    {
+        $user = User::factory()->create();
+        $issued = $user->createToken('nexo-android');
+        $issued->accessToken->forceFill(['created_at' => now()->subDays(31)])->save();
+
+        $this->withToken($issued->plainTextToken)
+            ->getJson('/api/mobile/session')
+            ->assertUnauthorized();
     }
 
     public function test_eight_failed_attempts_block_the_ip_across_web_and_mobile_logins(): void

@@ -45,7 +45,8 @@ class WorkspaceController extends Controller
 
         $r->session()->regenerate();
 
-        return response()->json(['user' => $r->user()->profilePayload()]);
+        return response()->json(['user' => $r->user()->profilePayload()])
+            ->header('Cache-Control', 'no-store, private');
 
     }
 
