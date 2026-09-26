@@ -18,8 +18,15 @@
               "browser": ""
             },
             "index": "src/index.html",
-            "browser": "src/main.ts",
-            "tsConfig": "tsconfig.json",
+          "browser": "src/main.ts",
+          "assets": [
+            {
+              "glob": "nexo-orbit-3d.webp",
+              "input": "src/assets",
+              "output": "assets"
+            }
+          ],
+          "tsConfig": "tsconfig.json",
             "styles": [
               "src/workspace.css"
             ],
