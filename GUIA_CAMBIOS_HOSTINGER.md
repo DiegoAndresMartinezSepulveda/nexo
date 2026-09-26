@@ -14,8 +14,9 @@ los archivos subidos ni la configuración privada.
   espacios separados por cliente o proyecto.
 - **Funciones:** tareas por ambiente, bugs, notas, biblioteca, diagramas/pizarra,
   checklist, adjuntos, contactos de aviso y correos de producción.
-- **Pizarra:** plantillas, formas, texto, colores, conectores, zoom, mano,
-  viñetas, listas numeradas, pegar imágenes, deshacer/rehacer y exportación PNG/PDF.
+- **Pizarra:** plantillas, formas, texto, colores, conectores, zoom centrado en el cursor,
+  pantalla completa, cuadrícula, ajuste a rejilla, mano, viñetas, listas numeradas,
+  pegar imágenes, atajos de teclado, deshacer/rehacer y exportación PNG/PDF.
 
 ## Qué se protege siempre
 
@@ -135,7 +136,9 @@ Nunca pegues el token en un commit, en un issue ni en el chat.
 3. Abre una tarea existente y verifica checklist y adjuntos.
 4. Entra a **Preferencias** y comprueba los destinatarios guardados.
 5. Prueba una tarea de producción con un destinatario de prueba.
-6. Abre una pizarra, prueba zoom y **Ajustar al lienzo**.
+6. Abre una pizarra, prueba **Pantalla completa**, zoom con `Ctrl/Cmd + rueda`,
+   `+`/`-`, `F` para ajustar y **Ajustar al lienzo**. Puedes ocultar la cuadrícula
+   o desactivar **Ajuste** si quieres mover elementos libremente.
 
 Si algo falla, conserva la carpeta anterior y revisa:
 

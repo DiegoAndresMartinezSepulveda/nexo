@@ -11,7 +11,7 @@ Nexo conserva la estructura de instalación existente: la carpeta privada sigue 
 - Clientes con código interno editable y proyectos por espacio.
 - Administrador, editores y lectores. Solo el administrador crea usuarios y asigna espacios.
 - Lectura por defecto, botón Editar, lectura ampliada y preferencia para abrir en edición.
-- Pizarra con zoom, desplazamiento, figuras, texto, notas, dibujo libre, conexiones, colores, listas, plantillas y pegado de imágenes; exportación PNG/PDF.
+- Pizarra con zoom centrado en el cursor, pantalla completa, cuadrícula opcional, ajuste a rejilla, desplazamiento, figuras, texto, notas, dibujo libre, conexiones, colores, listas, plantillas y pegado de imágenes; exportación PNG/PDF.
 - Privacidad de diagramas: solo yo, todo el espacio o personas específicas con permiso para ver o editar.
 - Vista de bugs con estados, prioridades, etiquetas y el mismo editor ordenado de las tareas.
 - Autoguardado de tareas, notas, biblioteca y diagramas existentes mientras editas.
@@ -131,7 +131,7 @@ La configuración visual se recuerda por navegador. No hay sincronización en ti
 - En Clientes, pulsa Editar para guardar el código interno, por ejemplo el que realmente corresponda a FEN. Se muestra junto al nombre en tarjetas y selectores.
 - En Usuarios, el administrador agrega personas con correo, contraseña inicial y los espacios permitidos. Un editor trabaja en esos espacios; un lector consulta y descarga. Ninguno puede invitar usuarios ni crear espacios. Cambiar su acceso cierra sus sesiones anteriores.
 - Una nota o tarea se abre en lectura. Editar muestra sus campos y herramientas; Ampliar lectura ofrece una ventana grande. En Preferencias puedes cambiar el modo predeterminado.
-- En Diagramas, crea pasos (Proceso, Decisión o Inicio/fin), conecta origen y destino y añade etiquetas Sí/No. Arrastra los pasos en el lienzo o usa Ordenar pasos. Guarda el diagrama con su explicación y referencias. PNG/PDF exporta el diagrama visible; también aparece un enlace de descarga si el navegador no inicia la descarga automáticamente.
+- En Diagramas, crea pasos (Proceso, Decisión o Inicio/fin), conecta origen y destino y añade etiquetas Sí/No. Arrastra los pasos en el lienzo o usa Ordenar pasos. Guarda el diagrama con su explicación y referencias. PNG/PDF exporta el diagrama visible; también aparece un enlace de descarga si el navegador no inicia la descarga automáticamente. La pizarra ofrece pantalla completa, cuadrícula, ajuste a rejilla, zoom con `Ctrl/Cmd + rueda` y atajos `+`, `-`, `F`, `Supr`, `Ctrl/Cmd + Z` y `Ctrl/Cmd + Y`.
 - Los PDF de diagramas se ajustan a una página A4, con fondo blanco. Exportar no guarda cambios pendientes: pulsa Guardar diagrama para persistirlos en Nexo.
 
 Las cuentas no incluyen recuperación de contraseña por correo. Un administrador puede reemplazar la contraseña de un colaborador desde Usuarios. Para la cuenta principal, conserva tu acceso SSH.
