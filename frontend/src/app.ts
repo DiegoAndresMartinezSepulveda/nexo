@@ -249,6 +249,7 @@ export class AppComponent implements OnInit {
     this.busy.set(true); if(auto)this.autosaveState.set('saving');this.error.set(''); if(!auto)this.notice.set('');
     const data = new FormData();
     Object.entries(this.draft).forEach(([key, value]) => data.append(key, typeof value==='boolean'?(value?'1':'0'):value));
+    if (auto) data.append('autosave', '1');
     this.files.forEach(file => data.append('files[]', file));
     this.taskDescriptionBlocks.forEach((b,i)=>Object.entries(b).forEach(([k,v])=>data.append(`description_blocks[${i}][${k}]`,String(v??''))));
     this.taskBlocks.forEach((b,i)=>Object.entries(b).forEach(([k,v])=>data.append(`notes_blocks[${i}][${k}]`,String(v??''))));

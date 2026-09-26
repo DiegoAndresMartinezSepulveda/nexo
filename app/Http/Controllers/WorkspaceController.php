@@ -86,7 +86,7 @@ class WorkspaceController extends Controller
 
             'priority' => ['required', Rule::in(array_keys(Task::PRIORITIES))],
 
-            'due_date' => 'nullable|date_format:Y-m-d', 'estimated_delivery_at' => 'nullable|date', 'checklist_text' => 'nullable|string|max:10000',
+            'due_date' => 'nullable|date_format:Y-m-d', 'estimated_delivery_at' => 'nullable|date', 'autosave' => 'sometimes|boolean', 'checklist_text' => 'nullable|string|max:10000',
             'notify_on_production' => 'sometimes|boolean', 'notify_emails' => 'nullable|string|max:2000', 'notification_message' => 'nullable|string|max:5000', 'tags' => 'nullable|string|max:1000',
             'notify_include_client' => 'sometimes|boolean', 'notify_include_project' => 'sometimes|boolean', 'notify_include_title' => 'sometimes|boolean', 'notify_include_description' => 'sometimes|boolean', 'notify_include_code' => 'sometimes|boolean',
             'notify_include_status' => 'sometimes|boolean', 'notify_include_checklist' => 'sometimes|boolean',
@@ -95,6 +95,8 @@ class WorkspaceController extends Controller
 
         ], ['title.required' => 'Escribe un título para la tarea.', 'files.*.max' => 'Cada archivo debe pesar como máximo 10 MB.', 'files.*.mimes' => 'Adjunta imágenes, PDF, documentos, texto o ZIP.']);
 
+        $autosave = (bool) ($data['autosave'] ?? false);
+        unset($data['autosave']);
         Content::validateProject(array_replace($task->only(['client_id', 'project_id']), $data));
 
         $this->validateState($data['environment'], $data['status']);
@@ -169,7 +171,7 @@ class WorkspaceController extends Controller
         }
 
         $this->resetProductionNotificationIfNeeded($task);
-        $mail = $this->notifyProduction($task);
+        $mail = $autosave ? 'not_requested' : $this->notifyProduction($task);
 
         return response()->json($task->load('attachments')->setAttribute('notification', $mail), $task->wasRecentlyCreated ? 201 : 200);
 
@@ -198,8 +200,6 @@ class WorkspaceController extends Controller
         $this->resetProductionNotificationIfNeeded($task);
 
         Content::log($r->user()->id, 'Estado: '.Task::STATUSES[$task->status], 'task', $task->id, $task->title);
-        $task->setAttribute('notification', $this->notifyProduction($task));
-
         return response()->json($task);
 
     }
@@ -228,8 +228,6 @@ class WorkspaceController extends Controller
         });
 
         $this->resetProductionNotificationIfNeeded($task);
-        $task->setAttribute('notification', $this->notifyProduction($task));
-
         return response()->json($task);
 
     }
@@ -239,6 +237,11 @@ class WorkspaceController extends Controller
         if (! $task->notify_on_production || $task->environment !== 'production' || $task->status !== 'done' || $task->production_notified_at || empty($task->notify_emails)) {
             return 'not_requested';
         }
+        $claimedAt = now();
+        if (! Task::whereKey($task->id)->whereNull('production_notified_at')->update(['production_notified_at' => $claimedAt])) {
+            return 'not_requested';
+        }
+        $task->production_notified_at = $claimedAt;
         try {
             $title = $task->title;
             $code = 'NX-'.str_pad((string) $task->id, 3, '0', STR_PAD_LEFT);
@@ -291,11 +294,11 @@ class WorkspaceController extends Controller
                     }
                 }
             });
-            $task->forceFill(['production_notified_at' => now()])->saveQuietly();
             Content::log($task->user_id, 'Correo de producción enviado', 'task', $task->id, $task->title);
 
             return 'sent';
         } catch (\Throwable $e) {
+            $task->forceFill(['production_notified_at' => null])->saveQuietly();
             Log::error('No se pudo enviar la notificación de producción', ['task_id' => $task->id, 'error' => $e->getMessage()]);
 
             return 'failed';
