@@ -168,6 +168,7 @@ class WorkspaceController extends Controller
             throw $e;
         }
 
+        $this->resetProductionNotificationIfNeeded($task);
         $mail = $this->notifyProduction($task);
 
         return response()->json($task->load('attachments')->setAttribute('notification', $mail), $task->wasRecentlyCreated ? 201 : 200);
@@ -194,6 +195,7 @@ class WorkspaceController extends Controller
 
         $this->validateState($task->environment, $data['status']);
         $task->update($data);
+        $this->resetProductionNotificationIfNeeded($task);
 
         Content::log($r->user()->id, 'Estado: '.Task::STATUSES[$task->status], 'task', $task->id, $task->title);
         $task->setAttribute('notification', $this->notifyProduction($task));
@@ -225,6 +227,7 @@ class WorkspaceController extends Controller
             Content::log($r->user()->id, 'Movida a '.Task::ENVIRONMENTS[$task->environment].' · '.Task::STATUSES[$task->status], 'task', $task->id, $task->title);
         });
 
+        $this->resetProductionNotificationIfNeeded($task);
         $task->setAttribute('notification', $this->notifyProduction($task));
 
         return response()->json($task);
@@ -286,6 +289,13 @@ class WorkspaceController extends Controller
             Log::error('No se pudo enviar la notificación de producción', ['task_id' => $task->id, 'error' => $e->getMessage()]);
 
             return 'failed';
+        }
+    }
+
+    private function resetProductionNotificationIfNeeded(Task $task): void
+    {
+        if ($task->environment !== 'production' || $task->status !== 'done') {
+            $task->forceFill(['production_notified_at' => null])->saveQuietly();
         }
     }
 
