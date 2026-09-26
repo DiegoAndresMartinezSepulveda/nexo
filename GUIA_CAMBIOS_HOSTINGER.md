@@ -80,6 +80,31 @@ porque ese archivo no pertenece al repositorio.
 No ejecutes una migración destructiva. Las migraciones de Nexo son incrementales
 y deben conservar la información existente.
 
+## Cron y tareas programadas
+
+Un cron es una tarea del servidor que ejecuta un comando automáticamente. En Laravel, el cron de Hostinger solo despierta al planificador; la tarea concreta se define en `routes/console.php` o en un comando de `app/Console/Commands`. En la versión actual, los avisos de producción se envían al guardar manualmente una tarea y no necesitan cron.
+
+Para activar el planificador en Hostinger, entra a **hPanel → Sitios web → Administrar → Avanzado → Cron Jobs**, elige **cada minuto** y usa este comando:
+
+```bash
+cd /home/u102104426/domains/diegomartinezsepulveda.cl/flujo && /opt/alt/php82/usr/bin/php artisan schedule:run >> /dev/null 2>&1
+```
+
+El cron queda guardado en la configuración de Hostinger, no dentro de Git ni de la base de datos. Si el panel pide una expresión completa, usa `* * * * *` delante del comando. Para diagnosticarlo temporalmente puedes guardar la salida en `storage/logs/cron.log` y luego volver a `/dev/null`:
+
+```bash
+cd /home/u102104426/domains/diegomartinezsepulveda.cl/flujo && /opt/alt/php82/usr/bin/php artisan schedule:run >> storage/logs/cron.log 2>&1
+```
+
+Para comprobar que Laravel ve las tareas programadas:
+
+```bash
+/opt/alt/php82/usr/bin/php artisan schedule:list
+/opt/alt/php82/usr/bin/php artisan schedule:run -vvv
+```
+
+Una tarea nueva se desarrolla y prueba localmente, se define en `routes/console.php` (por ejemplo `Schedule::command(...)->hourly()`), se sube con Git y empieza a ejecutarse cuando el cron del servidor la encuentra. Nunca pongas contraseñas o tokens dentro del comando.
+
 ## Configuración SMTP
 
 La configuración vive únicamente en `flujo/.env`:
