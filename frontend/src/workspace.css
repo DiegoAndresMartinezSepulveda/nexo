@@ -116,7 +116,9 @@
 .note-task-box.checked{background:var(--accent);border-color:var(--accent);color:#fff}
 .rich-area .rich-checklist{list-style:none;padding-left:0}
 .rich-area .rich-checklist li{margin:7px 0}
-.reading-text .note-task-box{cursor:pointer}
+.reading-text .rich-checklist li{min-height:42px;padding:6px 9px;border-radius:8px;cursor:pointer;touch-action:manipulation}
+.reading-text .rich-checklist li:hover{background:var(--accent-soft)}
+.reading-text .note-task-box{min-width:1.6em;height:1.6em;cursor:pointer}
 
 /* Note cards have clearer color identity and hierarchy */
 .entry-card:not(.library-card){position:relative;overflow:hidden;border:1px solid #23355718;border-left:4px solid #aab4c6;border-radius:16px;box-shadow:0 5px 16px #2635570b}

@@ -9,7 +9,16 @@ import {assetUrl} from './mobile';
 `})
 export class ReadingComponent {
  @Input() blocks:Block[]=[];@Input() files:Media[]=[];@Input() checklistEditable=false;@Output() blocksChange=new EventEmitter<Block[]>();image:number|null=null;
- toggleChecklistItem(event:MouseEvent){if(!this.checklistEditable)return;const box=(event.target as HTMLElement).closest('.note-task-box'),root=event.currentTarget as HTMLElement,content=box?.closest('.reading-text');if(!box||!content||!root.contains(box))return;event.preventDefault();const checked=box.textContent?.trim()==='☑';box.textContent=checked?'☐':'☑';box.classList.toggle('checked',!checked);box.parentElement?.querySelector('.note-task-label')?.classList.toggle('checked',!checked);const textBlocks=this.blocks.filter(block=>block.type==='text');const index=Array.from(root.querySelectorAll('.reading-text')).indexOf(content as HTMLElement);if(index<0||!textBlocks[index])return;textBlocks[index]={...textBlocks[index],html:content.innerHTML,text:content.textContent||''};this.blocksChange.emit([...this.blocks]);}
+ toggleChecklistItem(event:MouseEvent){
+  if(!this.checklistEditable)return;
+  const target=event.target as HTMLElement,root=event.currentTarget as HTMLElement,item=target.closest('ul.rich-checklist li'),box=item?.querySelector('.note-task-box'),content=box?.closest('.reading-text');
+  if(!item||!box||!content||!root.contains(box))return;
+  event.preventDefault();
+  const checked=box.textContent?.trim()==='☑';box.textContent=checked?'☐':'☑';box.classList.toggle('checked',!checked);item.querySelector('.note-task-label')?.classList.toggle('checked',!checked);
+  const renderedIndex=Array.from(root.querySelectorAll('.reading-text')).indexOf(content as HTMLElement),textBlockIndices=this.blocks.map((block,index)=>block.type==='text'?index:-1).filter(index=>index>=0),blockIndex=textBlockIndices[renderedIndex];
+  if(blockIndex===undefined)return;
+  const updated=[...this.blocks];updated[blockIndex]={...updated[blockIndex],html:content.innerHTML,text:content.textContent||''};this.blocks=updated;this.blocksChange.emit(updated);
+ }
  asset(id:any,preview=false){return assetUrl('/api/media/'+id+'?workspace='+localStorage.getItem('nexo-space')+(preview?'&preview=1':''));}
  plain(text:string){return text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');}
 }

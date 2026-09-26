@@ -37,6 +37,20 @@ class WorkspaceV2Test extends TestCase
         $this->getJson('/api/history')->assertJsonCount(2, 'data');
     }
 
+    public function test_checked_items_in_a_note_are_preserved_when_the_note_is_reopened(): void
+    {
+        $this->actingAs(User::factory()->create());
+        $html = '<ul class="rich-checklist"><li><span class="note-task-box checked">☑</span> <span class="note-task-label checked">Leche</span></li><li><span class="note-task-box">☐</span> <span class="note-task-label">Pan</span></li></ul>';
+        $response = $this->postJson('/api/entries', $this->entry(['blocks' => [['type' => 'text', 'html' => $html]]]))->assertCreated();
+
+        $saved = $response->json('blocks.0.html');
+        $this->assertStringContainsString('note-task-box checked', $saved);
+        $this->assertStringContainsString('☑', $saved);
+        $this->assertStringContainsString('note-task-box', $saved);
+        $this->assertStringContainsString('Pan', $saved);
+        $this->getJson('/api/entries/'.$response->json('id'))->assertOk()->assertJsonPath('blocks.0.html', $saved);
+    }
+
     public function test_library_uploads_are_private_persistent_and_removed_with_entry(): void
     {
         Storage::fake('local');
