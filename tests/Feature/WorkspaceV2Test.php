@@ -94,9 +94,11 @@ class WorkspaceV2Test extends TestCase
         $this->patchJson("/api/tasks/$id/move", ['environment' => 'qa', 'status' => 'pending'])->assertUnprocessable();
         $this->patchJson("/api/tasks/$id/move", ['environment' => 'development', 'status' => 'pending'])->assertUnprocessable();
         $this->patchJson("/api/tasks/$id/move", ['environment' => 'development', 'status' => 'development'])->assertUnprocessable()->assertJsonValidationErrors('rollback_reason');
-        $this->patchJson("/api/tasks/$id/move", ['environment' => 'development', 'status' => 'development', 'rollback_reason' => 'Falló la carga con clientes nuevos.'])->assertOk()->assertJsonPath('production_return_reason', 'Falló la carga con clientes nuevos.');
-        $this->assertDatabaseHas('tasks', ['id' => $id, 'production_return_reason' => 'Falló la carga con clientes nuevos.']);
-        $this->putJson('/api/tasks/'.$id, $payload + ['client_id' => null])->assertOk()->assertJsonPath('notes_blocks.0.html', '<b>Revisar</b>');
+        $this->patchJson("/api/tasks/$id/move", ['environment' => 'development', 'status' => 'development', 'rollback_reason' => 'Falló la carga con clientes nuevos.'])->assertOk()->assertJsonPath('environment_return_reason', 'Falló la carga con clientes nuevos.')->assertJsonPath('environment_return_from', 'production')->assertJsonPath('environment_return_to', 'development');
+        $this->assertDatabaseHas('tasks', ['id' => $id, 'environment_return_reason' => 'Falló la carga con clientes nuevos.']);
+        $this->patchJson("/api/tasks/$id/move", ['environment' => 'local', 'status' => 'development'])->assertUnprocessable()->assertJsonValidationErrors('rollback_reason');
+        $this->patchJson("/api/tasks/$id/move", ['environment' => 'local', 'status' => 'development', 'rollback_reason' => 'El cambio requiere una variable local.'])->assertOk()->assertJsonPath('environment_return_from', 'development')->assertJsonPath('environment_return_to', 'local');
+        $this->putJson('/api/tasks/'.$id, $payload + ['client_id' => null, 'environment_return_resolved' => true, 'environment_return_solution' => 'Se agregó la variable al entorno local.'])->assertOk()->assertJsonPath('environment_return_resolved', true)->assertJsonPath('environment_return_solution', 'Se agregó la variable al entorno local.')->assertJsonPath('notes_blocks.0.html', '<b>Revisar</b>');
     }
 
     public function test_production_email_uses_the_selected_task_fields(): void

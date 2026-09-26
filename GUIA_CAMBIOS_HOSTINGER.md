@@ -13,7 +13,7 @@ los archivos subidos ni la configuración privada.
 - **Autenticación:** sesiones Laravel, roles administrador/editor/solo lectura y
   espacios separados por cliente o proyecto.
 - **Funciones:** tareas por ambiente, bugs, notas, biblioteca, diagramas/pizarra,
-  checklist, adjuntos, historial de fallos, contactos de aviso y correos de producción.
+  checklist, seguimiento de regresos entre ambientes, adjuntos, contactos de aviso y correos de producción.
 - **Pizarra:** plantillas, formas, texto, colores, conectores, zoom centrado en el cursor,
   pantalla completa, cuadrícula, ajuste a rejilla, mano, viñetas, listas numeradas,
   pegar imágenes, atajos de teclado, deshacer/rehacer y exportación PNG/PDF.
@@ -136,7 +136,7 @@ Nunca pegues el token en un commit, en un issue ni en el chat.
 3. Abre una tarea existente y verifica checklist y adjuntos.
 4. Entra a **Preferencias** y comprueba los destinatarios guardados.
 5. Prueba una tarea de producción con un destinatario de prueba.
-6. Si una tarea completada vuelve a Desarrollo, confirma que solicita el motivo y que aparece en su historial.
+6. Si una tarea vuelve a un ambiente anterior, confirma que solicita el motivo, permite marcarlo como resuelto y conserva la solución en su historial.
 7. Abre una pizarra, prueba **Pantalla completa**, zoom con `Ctrl/Cmd + rueda`,
    `+`/`-`, `F` para ajustar y **Ajustar al lienzo**. Puedes ocultar la cuadrícula
    o desactivar **Ajuste** si quieres mover elementos libremente.

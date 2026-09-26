@@ -89,7 +89,7 @@ class WorkspaceController extends Controller
             'due_date' => 'nullable|date_format:Y-m-d', 'estimated_delivery_at' => 'nullable|date', 'autosave' => 'sometimes|boolean', 'checklist_text' => 'nullable|string|max:10000',
             'notify_on_production' => 'sometimes|boolean', 'notify_emails' => 'nullable|string|max:2000', 'notification_message' => 'nullable|string|max:5000', 'notify_message_on_production' => 'sometimes|boolean', 'notify_message_emails' => 'nullable|string|max:2000', 'notification_message_short' => 'nullable|string|max:2000', 'tags' => 'nullable|string|max:1000',
             'notify_include_client' => 'sometimes|boolean', 'notify_include_project' => 'sometimes|boolean', 'notify_include_title' => 'sometimes|boolean', 'notify_include_description' => 'sometimes|boolean', 'notify_include_code' => 'sometimes|boolean',
-            'notify_include_status' => 'sometimes|boolean', 'notify_include_checklist' => 'sometimes|boolean',
+            'notify_include_status' => 'sometimes|boolean', 'notify_include_checklist' => 'sometimes|boolean', 'environment_return_resolved' => 'sometimes|boolean', 'environment_return_solution' => 'nullable|string|max:10000',
 
             'files' => 'nullable|array|max:8', 'files.*' => 'file|max:10240|mimes:jpg,jpeg,png,webp,gif,pdf,txt,csv,doc,docx,xls,xlsx,ppt,pptx,zip',
 
@@ -140,7 +140,9 @@ class WorkspaceController extends Controller
 
         try {
 
-            DB::transaction(function () use ($r, $task, $data, &$paths) {
+            $wasReturnResolved = (bool) $task->environment_return_resolved;
+
+            DB::transaction(function () use ($r, $task, $data, &$paths, $wasReturnResolved) {
 
                 $new = ! $task->exists;
 
@@ -154,6 +156,14 @@ class WorkspaceController extends Controller
                 }
 
                 Content::log($r->user()->id, $new ? 'Creado' : 'Actualizado', 'task', $task->id, $task->title);
+
+                if (! $new && ! $wasReturnResolved && $task->environment_return_resolved) {
+                    $action = 'Error del regreso marcado como resuelto';
+                    if ($task->environment_return_solution) {
+                        $action .= ' · Solución: '.mb_substr($task->environment_return_solution, 0, 180);
+                    }
+                    Content::log($r->user()->id, $action, 'task', $task->id, $task->title);
+                }
 
                 foreach ($r->file('files', []) as $file) {
 
@@ -226,26 +236,34 @@ class WorkspaceController extends Controller
 
         $data = $r->validate(['status' => ['required', Rule::in(array_keys(Task::STATUSES))], 'environment' => ['required', Rule::in(array_keys(Task::ENVIRONMENTS))], 'rollback_reason' => 'nullable|string|max:5000']);
 
-        $returningFromProduction = $task->environment === 'production'
-            && $task->status === 'done'
-            && $data['environment'] === 'development';
+        $returningToEarlierEnvironment = $this->isEnvironmentReturn($task->environment, $data['environment']);
         $reason = trim((string) ($data['rollback_reason'] ?? ''));
-        if ($returningFromProduction && $reason === '') {
-            throw ValidationException::withMessages(['rollback_reason' => 'Explica qué falló antes de devolver la tarea a Desarrollo.']);
+        if ($returningToEarlierEnvironment && $reason === '') {
+            throw ValidationException::withMessages(['rollback_reason' => 'Explica qué falló antes de devolver la tarea a un ambiente anterior.']);
         }
         unset($data['rollback_reason']);
 
         $this->validateState($data['environment'], $data['status'], $task);
 
-        DB::transaction(function () use ($r, $task, $data, $returningFromProduction, $reason) {
-            if ($returningFromProduction) {
-                $data['production_return_reason'] = $reason;
-                $data['production_returned_at'] = now();
+        DB::transaction(function () use ($r, $task, $data, $returningToEarlierEnvironment, $reason) {
+            if ($returningToEarlierEnvironment) {
+                $returnedAt = now();
+                $data['environment_return_from'] = $task->environment;
+                $data['environment_return_to'] = $data['environment'];
+                $data['environment_return_reason'] = $reason;
+                $data['environment_return_solution'] = null;
+                $data['environment_return_resolved'] = false;
+                $data['environment_returned_at'] = $returnedAt;
+                // Keep the old fields populated for installations that still use the previous UI.
+                if ($task->environment === 'production' && $data['environment'] === 'development') {
+                    $data['production_return_reason'] = $reason;
+                    $data['production_returned_at'] = $returnedAt;
+                }
             }
             $task->update($data);
             $action = 'Movida a '.Task::ENVIRONMENTS[$task->environment].' · '.Task::STATUSES[$task->status];
-            if ($returningFromProduction) {
-                $action .= ' · Motivo: '.mb_substr($reason, 0, 180);
+            if ($returningToEarlierEnvironment) {
+                $action .= ' · Error registrado: '.mb_substr($reason, 0, 180);
             }
             Content::log($r->user()->id, $action, 'task', $task->id, $task->title);
         });
@@ -253,6 +271,15 @@ class WorkspaceController extends Controller
         $this->resetProductionNotificationIfNeeded($task);
         return response()->json($task);
 
+    }
+
+    private function isEnvironmentReturn(string $from, string $to): bool
+    {
+        $order = ['backlog', 'local', 'development', 'qa', 'certification', 'production'];
+        $fromPosition = array_search($from, $order, true);
+        $toPosition = array_search($to, $order, true);
+
+        return $fromPosition !== false && $toPosition !== false && $fromPosition > $toPosition;
     }
 
     private function notifyProduction(Task $task): string
