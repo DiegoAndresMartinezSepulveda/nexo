@@ -59,6 +59,11 @@ class LoginProtection
         return is_string($expected) && hash_equals($expected, trim($answer));
     }
 
+    public function challengeForRetry(Request $request): array
+    {
+        return $this->captchaRequired($request) ? $this->newCaptcha($request) : [];
+    }
+
     public function failed(Request $request, string $field, string $message): JsonResponse
     {
         RateLimiter::hit($this->failuresKey($request), self::FAILURE_WINDOW_SECONDS);
@@ -79,6 +84,10 @@ class LoginProtection
             'message' => $message,
             'errors' => [$field => [$message]],
         ];
+
+        if ($field === 'two_factor_code') {
+            $response['two_factor_required'] = true;
+        }
 
         if ($failures >= self::CAPTCHA_AFTER_FAILURES) {
             $response += $this->newCaptcha($request);

@@ -22,3 +22,11 @@ En **16 · Sesión móvil y acceso a fotos**, ejecuta **Iniciar sesión móvil**
 La API web usa sesión Laravel y cookie CSRF. La colección copia automáticamente XSRF-TOKEN al encabezado X-XSRF-TOKEN. Las peticiones protegidas por espacio envían X-Workspace-ID.
 
 No se usa Gmail ni Google Chat en estas pruebas: los avisos por correo del producto se envían mediante SMTP configurado en Laravel.
+
+## Activar la verificación en dos pasos
+
+En Nexo, abre **Preferencias → Verificación en dos pasos**. Confirma tu contraseña, copia la clave de configuración y agrégala manualmente en Google Authenticator, Microsoft Authenticator u otra app TOTP. Escribe el código actual de seis dígitos para activarla y guarda los diez códigos de recuperación en un lugar seguro; cada uno sirve una sola vez.
+
+La verificación se aplica al iniciar sesión en la web y en Android. Tras la contraseña, introduce el código de la app o uno de recuperación. Si pruebas en Postman, escribe el valor en **Current value** de `two_factor_code` y márcalo como sensible si Postman ofrece la opción; la colección lo vacía al completar el acceso. La clave de configuración se guarda cifrada y nunca se vuelve a mostrar después de activar la función.
+
+Si pierdes el teléfono, usa un código de recuperación. Si también perdiste esos códigos, una persona con acceso SSH puede restablecer solo el segundo factor desde la carpeta privada `flujo` con `/opt/alt/php82/usr/bin/php artisan nexo:two-factor-reset tu-correo`; confirma la operación. La contraseña y los datos de la cuenta no cambian.

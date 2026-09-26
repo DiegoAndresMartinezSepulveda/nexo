@@ -33,12 +33,17 @@ class User extends Authenticatable
         'password',
         'remember_token',
         'profile_photo_path',
+        'two_factor_secret',
+        'two_factor_recovery_codes',
+        'two_factor_confirmed_at',
+        'two_factor_last_used_step',
     ];
 
     public function profilePayload(): array
     {
         return $this->only('id', 'name', 'email', 'role') + [
             'profile_photo_url' => $this->profile_photo_path ? '/api/users/'.$this->id.'/photo' : null,
+            'two_factor_enabled' => (bool) $this->two_factor_confirmed_at,
         ];
     }
 
@@ -52,6 +57,8 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'two_factor_confirmed_at' => 'datetime',
+            'two_factor_recovery_codes' => 'array',
         ];
     }
 }

@@ -15,7 +15,7 @@ type Activity={id:number;action:string;subject_type:string;subject_id:number;tit
 type Share={user_id:number;name?:string;email?:string;permission:'view'|'edit'};
 type Member={id:number;name:string;email:string};
 type Entry={diagram?:Diagram;id:number;kind:'note'|'library'|'diagram';title:string;blocks:Block[];search_text:string;client_id:number|null;project_id:number|null;category:string;tags:string[];color:string;pinned:boolean;archived:boolean;media:Media[];updated_at:string;visibility?:'private'|'workspace'|'shared';shares?:Share[];can_edit?:boolean};
-type User = {id: number; name: string; email: string;role:'admin'|'editor'|'reader';profile_photo_url?:string|null;workspace_ids?:number[]};
+type User = {id: number; name: string; email: string;role:'admin'|'editor'|'reader';profile_photo_url?:string|null;two_factor_enabled?:boolean;workspace_ids?:number[]};
 type Space={id:number;name:string;color:string};
 type NotificationContact={id:number;name:string;email:string;channel:'email'|'message';is_default:boolean};
 type Attachment = {id: number; name: string; size: number};
@@ -43,6 +43,7 @@ export class AppComponent implements OnInit {
   files: File[] = [];
   email = ''; password = ''; query = ''; environment = '';taskTag='';
   loginCaptcha=signal<{id:string;question:string}|null>(null);loginCaptchaAnswer='';
+  twoFactorRequired=signal(false);twoFactorCode='';
   draft: Draft = this.emptyDraft();
   statusLabels: Record<string, string> = {pending: 'Pendiente', development: 'En desarrollo', review: 'En revisión', done: 'Completada'};
   environmentLabels: Record<string, string> = {backlog: 'Backlog', local: 'Local', development: 'Desarrollo', qa:'QA', certification: 'Certificación', production: 'Producción'};
@@ -262,29 +263,35 @@ export class AppComponent implements OnInit {
     this.busy.set(true); this.error.set('');
     try {
       const challenge=this.loginCaptcha();
-      const credentials={email:this.email,password:this.password,...(challenge?{captcha_id:challenge.id,captcha_answer:this.loginCaptchaAnswer}:{})};
+      const credentials={email:this.email,password:this.password,...(challenge?{captcha_id:challenge.id,captcha_answer:this.loginCaptchaAnswer}:{}),...(this.twoFactorRequired()?{two_factor_code:this.twoFactorCode}:{})};
       const result = isNativeMobile
         ? await firstValueFrom(this.http.post<{user: User; token: string}>('/api/mobile/login', credentials))
         : await firstValueFrom(this.http.post<{user: User}>('/api/login', credentials));
       const mobileToken = (result as {token?: string}).token;
       if (isNativeMobile && mobileToken) localStorage.setItem('nexo-mobile-token', mobileToken);
       if (isNativeMobile) await this.refreshMobileAssetToken();
-      this.user.set(result.user); this.loadSidebarPreferences(result.user.id); this.password = ''; this.loginCaptcha.set(null); this.loginCaptchaAnswer=''; this.notice.set(''); await this.initializeSpaces();
+      this.user.set(result.user); this.loadSidebarPreferences(result.user.id); this.password = ''; this.loginCaptcha.set(null); this.loginCaptchaAnswer='';this.twoFactorRequired.set(false);this.twoFactorCode=''; this.notice.set(''); await this.initializeSpaces();
     } catch (e) {
       if(e instanceof HttpErrorResponse){
-        const response=e.error as {captcha_required?:boolean;captcha_id?:string;captcha_question?:string;blocked?:boolean}|null;
+        const response=e.error as {captcha_required?:boolean;captcha_id?:string;captcha_question?:string;two_factor_required?:boolean;blocked?:boolean}|null;
+        if(response?.two_factor_required)this.twoFactorRequired.set(true);
         if(response?.captcha_required&&response.captcha_id&&response.captcha_question){this.loginCaptcha.set({id:response.captcha_id,question:response.captcha_question});this.loginCaptchaAnswer='';}
         else if(response?.blocked)this.loginCaptcha.set(null);
       }
       this.showError(e);
     } finally { this.busy.set(false); }
   }
+  resetTwoFactorLogin(){this.twoFactorRequired.set(false);this.twoFactorCode='';}
   async logout() {
     if (this.busy()) return;
     this.busy.set(true);
     try { await firstValueFrom(this.http.post('/api/logout', {})); localStorage.removeItem('nexo-mobile-token'); localStorage.removeItem('nexo-mobile-asset-token'); this.user.set(null); this.clearSpaceData(); this.tasks.set([]); this.selected.set(null); this.draft = this.emptyDraft(); this.view.set('board'); this.error.set(''); this.notice.set(''); }
     catch (e) { this.showError(e); } finally { this.busy.set(false); }
   }
+  twoFactorSetup=signal<{secret:string;otpauth_uri:string}|null>(null);twoFactorRecoveryCodes=signal<string[]|null>(null);twoFactorSetupPassword='';twoFactorSetupCode='';twoFactorDisableOpen=signal(false);twoFactorDisablePassword='';twoFactorDisableCode='';
+  async beginTwoFactorSetup(){if(this.busy())return;this.busy.set(true);this.error.set('');try{const setup=await firstValueFrom(this.http.post<{secret:string;otpauth_uri:string}>('/api/two-factor/setup',{password:this.twoFactorSetupPassword}));this.twoFactorSetup.set(setup);this.twoFactorSetupPassword='';this.twoFactorSetupCode='';}catch(e){this.showError(e);}finally{this.busy.set(false);}}
+  async confirmTwoFactorSetup(){if(this.busy()||!this.twoFactorSetupCode.trim())return;this.busy.set(true);this.error.set('');try{const result=await firstValueFrom(this.http.post<{enabled:boolean;recovery_codes:string[]}>('/api/two-factor/confirm',{code:this.twoFactorSetupCode}));const person=this.user();if(person)this.user.set({...person,two_factor_enabled:result.enabled});this.twoFactorSetup.set(null);this.twoFactorSetupCode='';this.twoFactorRecoveryCodes.set(result.recovery_codes);this.notice.set('Verificación en dos pasos activada. Guarda tus códigos de recuperación.');}catch(e){this.showError(e);}finally{this.busy.set(false);}}
+  async disableTwoFactor(){if(this.busy()||!this.twoFactorDisablePassword||!this.twoFactorDisableCode.trim())return;this.busy.set(true);this.error.set('');try{await firstValueFrom(this.http.post('/api/two-factor/disable',{password:this.twoFactorDisablePassword,code:this.twoFactorDisableCode}));const person=this.user();if(person)this.user.set({...person,two_factor_enabled:false});this.twoFactorDisablePassword='';this.twoFactorDisableCode='';this.twoFactorDisableOpen.set(false);this.notice.set('Verificación en dos pasos desactivada.');}catch(e){this.showError(e);}finally{this.busy.set(false);}}
   private async refreshMobileAssetToken() {
     if (!isNativeMobile) return;
     const result = await firstValueFrom(this.http.get<{token:string}>('/api/mobile/asset-token'));

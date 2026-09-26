@@ -3,6 +3,7 @@
 use App\Http\Controllers\AdministrationController;
 use App\Http\Controllers\ContentController as Content;
 use App\Http\Controllers\MobileAuthController;
+use App\Http\Controllers\TwoFactorController;
 use App\Http\Controllers\WorkspaceController as Workspace;
 use App\Http\Middleware\MobileAssetToken;
 use App\Http\Middleware\WorkspaceAccess;
@@ -21,6 +22,9 @@ Route::prefix('api')->group(function () {
         Route::get('/mobile/session', [MobileAuthController::class, 'session']);
         Route::get('/mobile/asset-token', [MobileAuthController::class, 'assetToken']);
         Route::post('/logout', [Workspace::class, 'logout']);
+        Route::post('/two-factor/setup', [TwoFactorController::class, 'setup'])->middleware('throttle:5,1');
+        Route::post('/two-factor/confirm', [TwoFactorController::class, 'confirm'])->middleware('throttle:10,1');
+        Route::post('/two-factor/disable', [TwoFactorController::class, 'disable'])->middleware('throttle:5,1');
         Route::get('/workspaces', [AdministrationController::class, 'spaces']);
         Route::post('/workspaces', [AdministrationController::class, 'saveSpace']);
         Route::put('/workspaces/{id}', [AdministrationController::class, 'saveSpace']);

@@ -5,12 +5,15 @@ namespace App\Http\Controllers;
 use App\Models\Attachment;
 use App\Models\Media;
 use App\Models\Task;
+use App\Models\User;
 use App\Support\Spaces;
 use App\Support\LoginProtection;
+use App\Support\TwoFactorAuth;
 use App\Support\WorkspaceContent as Content;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
@@ -19,7 +22,7 @@ use Illuminate\Validation\ValidationException;
 
 class WorkspaceController extends Controller
 {
-    public function login(Request $r, LoginProtection $protection)
+    public function login(Request $r, LoginProtection $protection, TwoFactorAuth $twoFactor)
     {
 
         if ($blocked = $protection->blockedResponse($r)) {
@@ -31,18 +34,36 @@ class WorkspaceController extends Controller
             'password' => 'required|string',
             'captcha_id' => 'nullable|string|max:64',
             'captcha_answer' => 'nullable|string|max:20',
+            'two_factor_code' => 'nullable|string|max:40',
         ]);
 
         if (! $protection->verifyCaptchaIfRequired($r)) {
             return $protection->failed($r, 'captcha_answer', 'La verificación no es correcta o venció.');
         }
 
-        if (! Auth::attempt(['email' => $credentials['email'], 'password' => $credentials['password']])) {
+        $user = User::where('email', $credentials['email'])->first();
+        if (! $user || ! Hash::check($credentials['password'], $user->password)) {
             return $protection->failed($r, 'email', 'El correo o la contraseña no coinciden.');
+        }
+
+        if ($user->two_factor_confirmed_at) {
+            if (empty($credentials['two_factor_code'])) {
+                return response()->json([
+                    'two_factor_required' => true,
+                    'message' => 'Ingresa el código de tu aplicación Authenticator o un código de recuperación.',
+                    'errors' => ['two_factor_code' => ['Ingresa el código de verificación.']],
+                    ...$protection->challengeForRetry($r),
+                ], 422)->header('Cache-Control', 'no-store, private');
+            }
+
+            if (! $twoFactor->verifyAndConsume($user, $credentials['two_factor_code'])) {
+                return $protection->failed($r, 'two_factor_code', 'El código de verificación no es correcto o ya se usó.');
+            }
         }
 
         $protection->succeeded($r);
 
+        Auth::login($user);
         $r->session()->regenerate();
 
         return response()->json(['user' => $r->user()->profilePayload()])
