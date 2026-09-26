@@ -245,32 +245,39 @@ class WorkspaceController extends Controller
             if (in_array('client', $fields, true) && $task->client_id) {
                 $client = DB::table('clients')->where('workspace_id', $task->workspace_id)->where('id', $task->client_id)->first();
                 if ($client) {
-                    $details[] = 'Cliente: '.$client->name.($client->code ? ' · '.$client->code : '');
+                    $details['client'] = $client->name.($client->code ? ' · '.$client->code : '');
                 }
             }
             if (in_array('project', $fields, true) && $task->project_id) {
                 $project = DB::table('projects')->where('workspace_id', $task->workspace_id)->where('id', $task->project_id)->first();
                 if ($project) {
-                    $details[] = 'Proyecto: '.$project->name;
+                    $details['project'] = $project->name;
                 }
             }
             if (in_array('code', $fields, true)) {
-                $details[] = "Código: {$code}";
+                $details['code'] = $code;
             }
             if (in_array('title', $fields, true)) {
-                $details[] = "Tarea: {$title}";
+                $details['title'] = $title;
             }
             if (in_array('description', $fields, true) && filled($task->description)) {
-                $details[] = "Descripción:\n{$task->description}";
+                $details['description'] = $task->description;
             }
             if (in_array('status', $fields, true)) {
-                $details[] = "Ambiente: Producción\nEstado: Completada";
+                $details['status'] = 'Producción · Completada';
             }
             if (in_array('checklist', $fields, true) && count($task->checklist ?? [])) {
-                $details[] = "Checklist:\n".collect($task->checklist)->map(fn ($step) => (($step['done'] ?? false) ? '☑' : '☐').' '.($step['text'] ?? ''))->join("\n");
+                $details['checklist'] = $task->checklist;
             }
-            $body = $intro.(count($details) ? "\n\n".implode("\n\n", $details) : '')."\n\nEste aviso fue enviado automáticamente por Nexo.";
-            Mail::raw($body, fn ($message) => $message->to($task->notify_emails)->subject("Producción completada: {$title}"));
+            $labels = ['client' => 'Cliente', 'project' => 'Proyecto', 'code' => 'Código', 'title' => 'Tarea', 'description' => 'Descripción', 'status' => 'Ambiente/Estado', 'checklist' => 'Checklist'];
+            $body = $intro.(count($details) ? "\n\n".collect($details)->map(fn ($value, $label) => ($labels[$label] ?? ucfirst($label)).': '.(is_array($value) ? "\n".collect($value)->map(fn ($step) => (($step['done'] ?? false) ? '☑' : '☐').' '.($step['text'] ?? ''))->join("\n") : $value))->join("\n\n") : '')."\n\nEste aviso fue enviado automáticamente por Nexo.";
+            $html = view('emails.production-completed', compact('intro', 'title', 'code', 'details'))->render();
+            Mail::send([], [], function ($message) use ($task, $title, $body, $html) {
+                $message->to($task->notify_emails)
+                    ->subject("Producción completada: {$title}")
+                    ->text($body)
+                    ->html($html);
+            });
             $task->forceFill(['production_notified_at' => now()])->saveQuietly();
             Content::log($task->user_id, 'Correo de producción enviado', 'task', $task->id, $task->title);
 
