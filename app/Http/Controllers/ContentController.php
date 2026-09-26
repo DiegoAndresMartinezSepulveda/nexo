@@ -15,6 +15,28 @@ use Illuminate\Validation\ValidationException;
 
 class ContentController extends Controller
 {
+    private const AUDIO_EXTENSIONS = ['mp3', 'm4a', 'aac', 'ogg', 'wav', 'flac', 'wma'];
+    private const VIDEO_EXTENSIONS = ['mp4', 'mov', 'm4v', 'webm', 'avi', 'mkv', 'mpeg', 'mpg', '3gp'];
+    private const ARCHIVE_EXTENSIONS = ['zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz'];
+    private const APP_EXTENSIONS = ['apk', 'aab', 'xapk'];
+    private const DOCUMENT_EXTENSIONS = ['txt', 'csv', 'md', 'rtf', 'odt', 'ods', 'odp', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'json', 'xml', 'yaml', 'yml', 'log', 'ini', 'conf'];
+
+    private function whereExtension($query, array $extensions): void
+    {
+        $query->where(function ($files) use ($extensions) {
+            foreach ($extensions as $extension) {
+                $files->orWhereRaw('LOWER(name) LIKE ?', ['%.'.$extension]);
+            }
+        });
+    }
+
+    private function whereNotExtensions($query, array $extensions): void
+    {
+        foreach ($extensions as $extension) {
+            $query->whereRaw('LOWER(name) NOT LIKE ?', ['%.'.$extension]);
+        }
+    }
+
     private function visibleEntries(Request $r)
     {
         $uid = $r->user()->id;
@@ -114,7 +136,7 @@ class ContentController extends Controller
 
     public function index(Request $r)
     {
-        $f = $r->validate(['kind' => ['required', Rule::in(['note', 'library', 'diagram'])], 'q' => 'nullable|string|max:200', 'archived' => 'nullable|boolean', 'client_id' => 'nullable|integer', 'project_id' => 'nullable|integer', 'category' => 'nullable|string|max:100', 'tag' => 'nullable|string|max:50', 'type' => ['nullable', Rule::in(['image', 'pdf', 'document', 'sql', 'archive'])]]);
+        $f = $r->validate(['kind' => ['required', Rule::in(['note', 'library', 'diagram'])], 'q' => 'nullable|string|max:200', 'archived' => 'nullable|boolean', 'client_id' => 'nullable|integer', 'project_id' => 'nullable|integer', 'category' => 'nullable|string|max:100', 'tag' => 'nullable|string|max:50', 'type' => ['nullable', Rule::in(['image', 'pdf', 'document', 'sql', 'archive', 'audio', 'video', 'apk', 'other'])]]);
         $query = $this->visibleEntries($r)->where('kind', $f['kind'])->where('archived', (bool) ($f['archived'] ?? false));
         foreach (['client_id', 'project_id', 'category'] as $field) {
             if (! empty($f[$field])) {
@@ -136,9 +158,18 @@ class ContentController extends Controller
         if (! empty($f['type'])) {
             $query->whereHas('media', function ($q) use ($f) {
                 match ($f['type']) {
-                    'image' => $q->where('mime', 'like', 'image/%'), 'pdf' => $q->where('mime', 'application/pdf'),
-                    'sql' => $q->where('name', 'like', '%.sql'), 'archive' => $q->where('name', 'like', '%.zip'),
-                    'document' => $q->where('mime', 'not like', 'image/%')->where('mime', '!=', 'application/pdf')->where('name', 'not like', '%.sql')->where('name', 'not like', '%.zip'),
+                    'image' => $q->whereIn('mime', ['image/png', 'image/jpeg', 'image/webp', 'image/gif']),
+                    'video' => $q->where(fn ($file) => $file->where('mime', 'like', 'video/%')->orWhere(fn ($names) => $this->whereExtension($names, self::VIDEO_EXTENSIONS))),
+                    'audio' => $q->where(fn ($file) => $file->where('mime', 'like', 'audio/%')->orWhere(fn ($names) => $this->whereExtension($names, self::AUDIO_EXTENSIONS))),
+                    'pdf' => $q->where(fn ($file) => $file->where('mime', 'application/pdf')->orWhereRaw('LOWER(name) LIKE ?', ['%.pdf'])),
+                    'apk' => $q->where(fn ($file) => $file->where('mime', 'application/vnd.android.package-archive')->orWhere(fn ($names) => $this->whereExtension($names, self::APP_EXTENSIONS))),
+                    'sql' => $q->whereRaw('LOWER(name) LIKE ?', ['%.sql']),
+                    'archive' => $q->where(fn ($file) => $this->whereExtension($file, self::ARCHIVE_EXTENSIONS)),
+                    'document' => $q->where(fn ($file) => $this->whereExtension($file, self::DOCUMENT_EXTENSIONS)),
+                    'other' => $q->where(function ($file) {
+                        $file->where('mime', 'not like', 'image/%')->where('mime', 'not like', 'video/%')->where('mime', 'not like', 'audio/%')->where('mime', '!=', 'application/pdf')->where('mime', '!=', 'application/vnd.android.package-archive');
+                        $this->whereNotExtensions($file, array_merge(self::AUDIO_EXTENSIONS, self::VIDEO_EXTENSIONS, self::ARCHIVE_EXTENSIONS, self::APP_EXTENSIONS, self::DOCUMENT_EXTENSIONS, ['pdf', 'sql']));
+                    }),
                 };
             });
         }
@@ -228,7 +259,9 @@ class ContentController extends Controller
 
     public function upload(Request $r)
     {
-        $r->validate(['file' => 'required|file|max:10240|extensions:jpg,jpeg,png,webp,gif,pdf,txt,csv,doc,docx,xls,xlsx,ppt,pptx,zip,sql|mimes:jpg,jpeg,png,webp,gif,pdf,txt,csv,doc,docx,xls,xlsx,ppt,pptx,zip,sql']);
+        // Library assets can be any file type. Keep them private and downloadable;
+        // media() only renders a small allowlist of safe preview formats inline.
+        $r->validate(['file' => 'required|file|max:102400']);
         $file = $r->file('file');
         $path = $file->store('media', 'local');
         abort_unless($path, 500);

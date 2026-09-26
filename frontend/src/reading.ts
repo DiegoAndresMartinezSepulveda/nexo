@@ -4,7 +4,7 @@ import {Block,Media,SafeNotePipe,ModalComponent} from './editor';
 import {assetUrl} from './mobile';
 @Component({selector:'app-reading',standalone:true,imports:[CommonModule,SafeNotePipe,ModalComponent],template:`
 <div class="reading-content" (click)="toggleChecklistItem($event)">@for(block of blocks;track $index){@if(block.type==='text'){<div class="reading-text" [innerHTML]="(block.html||plain(block.text||''))|safeNote"></div>}@else{<figure><button type="button" class="reading-image" (click)="image=block.media_id||null" aria-label="Ampliar imagen"><img [src]="asset(block.media_id,true)" [alt]="block.caption||'Captura de referencia'" loading="lazy"></button>@if(block.caption){<figcaption>{{block.caption}}</figcaption>}</figure>}}@empty{<p class="muted">Sin contenido adicional.</p>}</div>
-@if(files.length){<h3>Archivos</h3><div class="reading-files">@for(file of files;track file.id){<div class="attachment"><div><strong>{{file.name}}</strong><small>{{file.size/1024|number:'1.1-1'}} KB</small></div><a class="button secondary" [href]="asset(file.id)">Descargar</a>@if(file.mime.startsWith('image/')||file.mime==='application/pdf'){<a class="text-button" [href]="asset(file.id,true)" target="_blank" rel="noopener">Ver</a>}</div>}</div>}
+@if(files.length){<h3>Archivos</h3><div class="reading-files">@for(file of files;track file.id){<div class="attachment"><div><strong>{{file.name}}</strong><small>{{formatFileSize(file.size)}}</small></div><a class="button secondary" [href]="asset(file.id)">Descargar</a>@if(canPreview(file)){<a class="text-button" [href]="asset(file.id,true)" target="_blank" rel="noopener">Ver</a>}</div>}</div>}
 @if(image){<app-modal title="Captura" [fullscreen]="true" (closed)="image=null"><img class="reading-zoom" [src]="asset(image,true)" alt="Captura ampliada"></app-modal>}
 `})
 export class ReadingComponent {
@@ -19,6 +19,8 @@ export class ReadingComponent {
   if(blockIndex===undefined)return;
   const updated=[...this.blocks];updated[blockIndex]={...updated[blockIndex],html:content.innerHTML,text:content.textContent||''};this.blocks=updated;this.blocksChange.emit(updated);
  }
+ canPreview(file:Media){return ['image/png','image/jpeg','image/webp','image/gif','application/pdf'].includes(file.mime);}
+ formatFileSize(size:number){return size>=1048576?`${(size/1048576).toFixed(1)} MB`:`${(size/1024).toFixed(1)} KB`;}
  asset(id:any,preview=false){return assetUrl('/api/media/'+id+'?workspace='+localStorage.getItem('nexo-space')+(preview?'&preview=1':''));}
  plain(text:string){return text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');}
 }

@@ -201,14 +201,29 @@ class WorkspaceV2Test extends TestCase
         $this->getJson('/api/entries/'.$entry)->assertOk()->assertJsonPath('client_id', null);
     }
 
-    public function test_dangerous_uploads_and_guest_access_are_rejected(): void
+    public function test_library_accepts_uncommon_files_privately_and_guest_access_is_rejected(): void
     {
         $this->postJson('/api/entries', $this->entry())->assertUnauthorized();
         $this->getJson('/api/catalog')->assertUnauthorized();
         $this->getJson('/api/history')->assertUnauthorized();
         $this->actingAs(User::factory()->create());
         Storage::fake('local');
-        $this->post('/api/media', ['file' => UploadedFile::fake()->createWithContent('evil.html', '<script>alert(1)</script>')], ['Accept' => 'application/json'])->assertUnprocessable();
-        $this->post('/api/media', ['file' => UploadedFile::fake()->createWithContent('evil.svg', '<svg onload="alert(1)"></svg>')], ['Accept' => 'application/json'])->assertUnprocessable();
+        $ids = [];
+        foreach ([
+            UploadedFile::fake()->create('aplicacion.apk', 1, 'application/vnd.android.package-archive'),
+            UploadedFile::fake()->create('cancion.mp3', 1, 'audio/mpeg'),
+            UploadedFile::fake()->create('video.mp4', 1, 'video/mp4'),
+            UploadedFile::fake()->createWithContent('archivo.html', '<script>alert(1)</script>'),
+            UploadedFile::fake()->createWithContent('vector.svg', '<svg onload="alert(1)"></svg>'),
+            UploadedFile::fake()->create('formato-propio.xyz', 1, 'application/octet-stream'),
+        ] as $file) {
+            $id = $this->post('/api/media', ['file' => $file], ['Accept' => 'application/json'])->assertCreated()->json('id');
+            $ids[] = $id;
+            $this->get('/api/media/'.$id.'?preview=1')->assertDownload($file->getClientOriginalName())->assertHeader('X-Content-Type-Options', 'nosniff');
+        }
+        $this->postJson('/api/entries', $this->entry(['kind' => 'library', 'attachment_ids' => $ids]))->assertCreated();
+        foreach (['apk', 'audio', 'video', 'other'] as $type) {
+            $this->getJson('/api/entries?kind=library&type='.$type)->assertJsonCount(1);
+        }
     }
 }
