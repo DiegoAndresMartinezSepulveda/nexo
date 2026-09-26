@@ -281,7 +281,7 @@ class WorkspaceController extends Controller
             $html = view('emails.production-completed', compact('intro', 'title', 'code', 'details'))->render();
             Mail::send([], [], function ($message) use ($task, $title, $body, $html, $attachments) {
                 $message->to($task->notify_emails)
-                    ->subject("Producción completada: {$title}")
+                    ->subject("{$title} ya está en Producción")
                     ->text($body)
                     ->html($html);
                 foreach ($attachments as $attachment) {
