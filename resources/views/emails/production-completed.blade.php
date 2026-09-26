@@ -7,7 +7,7 @@
     <tr><td style="padding:28px;"><p style="margin:0 0 22px;font-size:16px;line-height:1.6;">{!! nl2br(e($intro)) !!}</p>
       <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">
         @foreach($details as $key => $value)
-          <tr><td style="padding:12px 0;border-top:1px solid #edf0f5;vertical-align:top;color:#7b8498;font-size:12px;text-transform:uppercase;letter-spacing:.5px;width:30%;">{{ $labels[$key] ?? ucfirst($key) }}</td><td style="padding:12px 0;border-top:1px solid #edf0f5;font-size:15px;line-height:1.5;">@if(is_array($value))<ul style="margin:0;padding-left:20px;">@foreach($value as $step)<li style="margin:4px 0;list-style:none;">{{ ($step['done'] ?? false) ? '☑' : '☐' }} {{ $step['text'] ?? '' }}</li>@endforeach</ul>@else{!! nl2br(e($value)) !!}@endif</td></tr>
+          <tr><td style="padding:12px 0;border-top:1px solid #edf0f5;vertical-align:top;color:#7b8498;font-size:12px;text-transform:uppercase;letter-spacing:.5px;width:30%;">{{ $labels[$key] ?? ucfirst($key) }}</td><td style="padding:12px 0;border-top:1px solid #edf0f5;font-size:15px;line-height:1.5;">@if(is_array($value))<ul style="margin:0;padding-left:20px;">@foreach($value as $item)<li style="margin:4px 0;list-style:none;">@if(is_array($item){{-- checklist --}}){{ ($item['done'] ?? false) ? '☑' : '☐' }} {{ $item['text'] ?? '' }}@else• {{ $item }}@endif</li>@endforeach</ul>@else{!! nl2br(e($value)) !!}@endif</td></tr>
         @endforeach
       </table>
       <p style="margin:24px 0 0;padding-top:18px;border-top:1px solid #edf0f5;color:#8a93a6;font-size:12px;">Este aviso fue enviado automáticamente por Nexo.</p>

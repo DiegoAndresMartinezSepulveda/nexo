@@ -86,7 +86,7 @@ class WorkspaceController extends Controller
 
             'priority' => ['required', Rule::in(array_keys(Task::PRIORITIES))],
 
-            'due_date' => 'nullable|date_format:Y-m-d', 'checklist_text' => 'nullable|string|max:10000',
+            'due_date' => 'nullable|date_format:Y-m-d', 'estimated_delivery_at' => 'nullable|date', 'checklist_text' => 'nullable|string|max:10000',
             'notify_on_production' => 'sometimes|boolean', 'notify_emails' => 'nullable|string|max:2000', 'notification_message' => 'nullable|string|max:5000', 'tags' => 'nullable|string|max:1000',
             'notify_include_client' => 'sometimes|boolean', 'notify_include_project' => 'sometimes|boolean', 'notify_include_title' => 'sometimes|boolean', 'notify_include_description' => 'sometimes|boolean', 'notify_include_code' => 'sometimes|boolean',
             'notify_include_status' => 'sometimes|boolean', 'notify_include_checklist' => 'sometimes|boolean',
@@ -115,8 +115,8 @@ class WorkspaceController extends Controller
 
         $data['notify_emails'] = collect(preg_split('/[,;\s]+/u', $data['notify_emails'] ?? ''))->map(fn ($email) => mb_strtolower(trim($email)))->filter()->unique()->values()->all();
         $data['tags'] = collect(explode(',', $data['tags'] ?? ''))->map(fn ($tag) => mb_substr(trim($tag), 0, 40))->filter()->unique()->take(20)->values()->all();
-        $data['notification_fields'] = collect(['client', 'project', 'title', 'description', 'code', 'status', 'checklist'])->filter(fn ($field) => (bool) ($data['notify_include_'.$field] ?? false))->values()->all();
-        foreach (['client', 'project', 'title', 'description', 'code', 'status', 'checklist'] as $field) {
+        $data['notification_fields'] = collect(['client', 'project', 'title', 'description', 'code', 'status', 'checklist', 'attachments'])->filter(fn ($field) => (bool) ($data['notify_include_'.$field] ?? false))->values()->all();
+        foreach (['client', 'project', 'title', 'description', 'code', 'status', 'checklist', 'attachments'] as $field) {
             unset($data['notify_include_'.$field]);
         }
         foreach ($data['notify_emails'] as $email) {
@@ -272,14 +272,24 @@ class WorkspaceController extends Controller
             if (in_array('checklist', $fields, true) && count($task->checklist ?? [])) {
                 $details['checklist'] = $task->checklist;
             }
-            $labels = ['client' => 'Cliente', 'project' => 'Proyecto', 'code' => 'Código', 'title' => 'Tarea', 'description' => 'Descripción', 'status' => 'Ambiente/Estado', 'checklist' => 'Checklist'];
+            $attachments = in_array('attachments', $fields, true) ? $task->attachments : collect();
+            if ($attachments->count()) {
+                $details['attachments'] = $attachments->pluck('name')->all();
+            }
+            $labels = ['client' => 'Cliente', 'project' => 'Proyecto', 'code' => 'Código', 'title' => 'Tarea', 'description' => 'Descripción', 'status' => 'Ambiente/Estado', 'checklist' => 'Checklist', 'attachments' => 'Archivos adjuntos'];
             $body = $intro.(count($details) ? "\n\n".collect($details)->map(fn ($value, $label) => ($labels[$label] ?? ucfirst($label)).': '.(is_array($value) ? "\n".collect($value)->map(fn ($step) => (($step['done'] ?? false) ? '☑' : '☐').' '.($step['text'] ?? ''))->join("\n") : $value))->join("\n\n") : '')."\n\nEste aviso fue enviado automáticamente por Nexo.";
             $html = view('emails.production-completed', compact('intro', 'title', 'code', 'details'))->render();
-            Mail::send([], [], function ($message) use ($task, $title, $body, $html) {
+            Mail::send([], [], function ($message) use ($task, $title, $body, $html, $attachments) {
                 $message->to($task->notify_emails)
                     ->subject("Producción completada: {$title}")
                     ->text($body)
                     ->html($html);
+                foreach ($attachments as $attachment) {
+                    $path = Storage::disk('local')->path($attachment->path);
+                    if (is_file($path)) {
+                        $message->attach($path, ['as' => $attachment->name]);
+                    }
+                }
             });
             $task->forceFill(['production_notified_at' => now()])->saveQuietly();
             Content::log($task->user_id, 'Correo de producción enviado', 'task', $task->id, $task->title);
