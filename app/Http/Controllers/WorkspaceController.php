@@ -241,24 +241,14 @@ class WorkspaceController extends Controller
     private function notifyProduction(Task $task): string
     {
         $emailPending = $task->notify_on_production && count($task->notify_emails ?? []) && ! $task->production_notified_at;
-        $messagePending = $task->notify_message_on_production && count($task->notify_message_emails ?? []) && ! $task->production_message_notified_at;
-        if ((! $emailPending && ! $messagePending) || $task->environment !== 'production' || $task->status !== 'done') {
+        if (! $emailPending || $task->environment !== 'production' || $task->status !== 'done') {
             return 'not_requested';
         }
         $claimedAt = now();
-        if ($emailPending && ! Task::whereKey($task->id)->whereNull('production_notified_at')->update(['production_notified_at' => $claimedAt])) {
-            $emailPending = false;
-        } else if ($emailPending) {
-            $task->production_notified_at = $claimedAt;
-        }
-        if ($messagePending && ! Task::whereKey($task->id)->whereNull('production_message_notified_at')->update(['production_message_notified_at' => $claimedAt])) {
-            $messagePending = false;
-        } else if ($messagePending) {
-            $task->production_message_notified_at = $claimedAt;
-        }
-        if (! $emailPending && ! $messagePending) {
+        if (! Task::whereKey($task->id)->whereNull('production_notified_at')->update(['production_notified_at' => $claimedAt])) {
             return 'not_requested';
         }
+        $task->production_notified_at = $claimedAt;
         try {
             $title = $task->title;
             $code = 'NX-'.str_pad((string) $task->id, 3, '0', STR_PAD_LEFT);
@@ -311,12 +301,6 @@ class WorkspaceController extends Controller
                             $message->attach($path, ['as' => $attachment->name]);
                         }
                     }
-                });
-            }
-            if ($messagePending) {
-                $short = trim($task->notification_message_short ?: "Hola, la tarea {$title} ya terminó en Producción. Revísala cuando puedas 👍");
-                Mail::raw($short, function ($message) use ($task, $title) {
-                    $message->to($task->notify_message_emails)->subject("Aviso: {$title} terminó en Producción");
                 });
             }
             Content::log($task->user_id, 'Aviso de producción enviado', 'task', $task->id, $task->title);
