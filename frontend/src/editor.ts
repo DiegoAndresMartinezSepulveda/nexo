@@ -43,7 +43,7 @@ export class ModalComponent implements AfterViewInit {
     <label class="text-color" title="Color del texto">A<input type="color" aria-label="Color del texto" value="#4169e1" (input)="command('foreColor',$any($event.target).value)"></label>
     <button type="button" title="Quitar formato" aria-label="Quitar formato" (mousedown)="$event.preventDefault()" (click)="command('removeFormat')">T×</button>
   </div>
-  <div #area contenteditable="true" role="textbox" aria-multiline="true" [attr.aria-label]="label" class="rich-area" data-placeholder="Escribe una nota… puedes pegar una captura con Ctrl+V" (input)="changed()" (change)="changed()" (keyup)="remember()" (mouseup)="remember()" (paste)="paste($event)"></div>
+  <div #area contenteditable="true" role="textbox" aria-multiline="true" [attr.aria-label]="label" class="rich-area" data-placeholder="Escribe una nota… puedes pegar una captura con Ctrl+V" (input)="changed()" (change)="changed()" (click)="toggleChecklistItem($event)" (keyup)="remember()" (mouseup)="remember()" (paste)="paste($event)"></div>
 `})
 export class RichTextComponent implements AfterViewInit {
   @Input() html=''; @Input() text=''; @Input() label='Texto de la nota';
@@ -52,7 +52,8 @@ export class RichTextComponent implements AfterViewInit {
   ngAfterViewInit(){const el=this.area.nativeElement;if(this.html)el.innerHTML=cleanHTML(this.html);else el.innerText=this.text;}
   remember(){const s=window.getSelection();if(s?.rangeCount&&this.area.nativeElement.contains(s.anchorNode))this.range=s.getRangeAt(0).cloneRange();}
   command(name:string,value?:string){const el=this.area.nativeElement;el.focus();const s=window.getSelection();if(this.range&&el.contains(this.range.commonAncestorContainer)){s?.removeAllRanges();s?.addRange(this.range);}document.execCommand('styleWithCSS',false,'false');document.execCommand(name,false,value);this.remember();this.changed();}
-  checklist(){const el=this.area.nativeElement;el.focus();document.execCommand('insertHTML',false,'<ul class="rich-checklist"><li>☐ Nueva tarea</li></ul><p><br></p>');this.changed();}
+  checklist(){const el=this.area.nativeElement;el.focus();document.execCommand('insertHTML',false,'<ul class="rich-checklist"><li><span class="note-task-box">☐</span> <span class="note-task-label">Nueva tarea</span></li></ul><p><br></p>');this.changed();}
+  toggleChecklistItem(event:MouseEvent){const mark=(event.target as HTMLElement).closest('.note-task-box');if(!mark||!this.area.nativeElement.contains(mark))return;event.preventDefault();const checked=mark.textContent?.trim()==='☑';mark.textContent=checked?'☐':'☑';mark.classList.toggle('checked',!checked);mark.parentElement?.querySelector('.note-task-label')?.classList.toggle('checked',!checked);this.changed();}
   changed(){this.edited.emit({html:cleanHTML(this.area.nativeElement.innerHTML),text:this.area.nativeElement.innerText});}
   paste(event:ClipboardEvent){
     event.preventDefault(); const files=Array.from(event.clipboardData?.files||[]).filter(f=>f.type.startsWith('image/'));

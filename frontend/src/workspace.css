@@ -110,3 +110,29 @@
 .rollback-warning{display:grid;gap:4px;margin:12px 0 6px;padding:12px 13px;border-left:4px solid #d97732;border-radius:0 9px 9px 0;background:#fff6ed;color:#7c431d}.rollback-warning span{font-size:12px;color:#965d35}.task-form textarea#move-reason{min-height:92px;resize:vertical}.return-history{margin:20px 0;padding:15px 17px;border-left:4px solid #d97732;border-radius:0 10px 10px 0;background:#fff6ed}.return-history h2{margin:0 0 7px;font-size:15px;color:#7c431d}.return-history p{margin:0 0 8px;white-space:pre-wrap}.return-history small{color:#965d35}
 [data-theme=dark] .return-label{background:#4b3326;color:#ffd4a8;border-color:#795036}[data-theme=dark] .rollback-warning,[data-theme=dark] .return-history{background:#3b2b22;color:#ffe2c2}.return-history h2{color:inherit}.rollback-warning span,.return-history small{color:#e6b98a}
 .return-label.return-resolved{background:#e6f8ed;color:#23734b;border-color:#b9e4c9}.return-issue-form{display:grid;gap:9px;margin:10px 0 24px;padding:17px;border:1px solid #e9c28f;border-left:4px solid #d97732;border-radius:0 12px 12px 0;background:#fff9f1}.return-issue-route{color:#9a5e2e;font-size:12px}.return-reason-read{padding:11px 12px;border-radius:8px;background:var(--surface-alt);white-space:pre-wrap;line-height:1.55}.return-history-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}.return-history-heading span{padding:4px 8px;border-radius:999px;background:#f5e1c4;color:#8c5725;font-size:11px;font-weight:800}.return-history.resolved{border-left-color:#2a9b64;background:#effaf3}.return-history.resolved .return-history-heading span{background:#d7f2e2;color:#23734b}[data-theme=dark] .return-label.return-resolved{background:#203f30;color:#b7ebca;border-color:#31694c}[data-theme=dark] .return-issue-form{background:#3b2b22;border-color:#795036;color:#ffe2c2}.return-issue-form .return-issue-route{color:#e6b98a}.return-issue-form .return-reason-read{background:#2a3344}[data-theme=dark] .return-history.resolved{background:#20392c}[data-theme=dark] .return-history-heading span{background:#57432a;color:#ffd5a1}
+
+/* Interactive checklists inside notes */
+.note-task-box{display:inline-flex;align-items:center;justify-content:center;min-width:1.4em;height:1.4em;margin-right:.35em;border:1px solid #8793ad;border-radius:4px;color:var(--accent);font-weight:750;line-height:1;cursor:pointer;user-select:none;vertical-align:-.12em}
+.note-task-box.checked{background:var(--accent);border-color:var(--accent);color:#fff}
+.rich-area .rich-checklist{list-style:none;padding-left:0}
+.rich-area .rich-checklist li{margin:7px 0}
+.reading-text .note-task-box{cursor:pointer}
+
+/* Note cards have clearer color identity and hierarchy */
+.entry-card:not(.library-card){position:relative;overflow:hidden;border:1px solid #23355718;border-left:4px solid #aab4c6;border-radius:16px;box-shadow:0 5px 16px #2635570b}
+.entry-card:not(.library-card):hover{transform:translateY(-4px);box-shadow:0 14px 30px #26355718}
+.entry-card.note-yellow{border-left-color:#d7a92e;background:linear-gradient(145deg,var(--note-yellow),color-mix(in srgb,var(--note-yellow) 82%,var(--surface)))}
+.entry-card.note-blue{border-left-color:#5282d8;background:linear-gradient(145deg,var(--note-blue),color-mix(in srgb,var(--note-blue) 82%,var(--surface)))}
+.entry-card.note-green{border-left-color:#32966b;background:linear-gradient(145deg,var(--note-green),color-mix(in srgb,var(--note-green) 82%,var(--surface)))}
+.entry-card.note-red{border-left-color:#d66a61;background:linear-gradient(145deg,var(--note-red),color-mix(in srgb,var(--note-red) 82%,var(--surface)))}
+.entry-card.note-purple{border-left-color:#8762c4;background:linear-gradient(145deg,var(--note-purple),color-mix(in srgb,var(--note-purple) 82%,var(--surface)))}
+.entry-card.note-gray{border-left-color:#8794a9;background:linear-gradient(145deg,var(--note-gray),color-mix(in srgb,var(--note-gray) 82%,var(--surface)))}
+.entry-card:not(.library-card) .entry-card-top>app-icon{width:32px;height:32px;padding:7px;border-radius:10px;background:#ffffffa8;box-shadow:0 2px 7px #2536550d}
+.entry-card:not(.library-card) .entry-card-top>span{font-weight:750;letter-spacing:1.4px}
+.entry-card:not(.library-card) .entry-open h2{font-size:20px;line-height:1.35}
+.entry-card:not(.library-card) .entry-open p{color:var(--text);opacity:.76}
+.entry-card:not(.library-card) .entry-card-bottom{border-color:#2635571c}
+.entry-card:not(.library-card) .color-swatches button{width:14px;height:14px;border:2px solid #ffffffb5;box-shadow:0 0 0 1px #26355724}
+.entry-card:not(.library-card) .color-swatches button.current{transform:scale(1.18)}
+.rich-area .note-task-label.checked,.reading-text .note-task-label.checked{text-decoration:line-through;opacity:.62}
+.entry-bottom-spacer{flex:1}

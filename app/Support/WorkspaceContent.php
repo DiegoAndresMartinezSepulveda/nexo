@@ -46,7 +46,7 @@ class WorkspaceContent
             }
             $config = \HTMLPurifier_Config::createDefault();
             $config->set('Cache.DefinitionImpl', null);
-            $config->set('HTML.Allowed', 'p[style],div[style],span[style],b,strong,i,em,u,s,strike,br,h2,h3,ul[class],ol,li,blockquote,pre,code,font[color|size|face]');
+            $config->set('HTML.Allowed', 'p[style],div[style],span[class|style],b,strong,i,em,u,s,strike,br,h2,h3,ul[class],ol,li,blockquote,pre,code,font[color|size|face]');
             $config->set('CSS.AllowedProperties', ['color', 'background-color', 'font-size', 'font-family', 'text-align', 'font-weight', 'font-style', 'text-decoration']);
             $html = (new \HTMLPurifier($config))->purify($b['html'] ?? nl2br(htmlspecialchars($b['text'] ?? '', ENT_QUOTES, 'UTF-8')));
 
