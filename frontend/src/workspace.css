@@ -157,11 +157,14 @@
 .dashboard-grid.notes-only{grid-template-columns:1fr}
 
 /* Each selected workspace gives Nexo a clear, consistent accent color. */
-.shell{--accent:var(--space-accent);--accent-soft:color-mix(in srgb,var(--space-accent) 13%,var(--surface))}
-.shell .brand-mark{background:linear-gradient(145deg,color-mix(in srgb,var(--space-accent) 74%,white),var(--space-accent));box-shadow:0 8px 18px color-mix(in srgb,var(--space-accent) 32%,transparent)}
-.shell .brand-mark:after{box-shadow:-22px 23px 0 color-mix(in srgb,var(--space-accent) 52%,#ffd77e)}
-.shell .button.primary,.shell .sidebar-create{background:var(--space-accent);box-shadow:0 4px 12px color-mix(in srgb,var(--space-accent) 24%,transparent)}
-.shell .button.primary:hover,.shell .sidebar-create:hover{background:color-mix(in srgb,var(--space-accent) 88%,#101725)}
-.shell .nav-item.active{background:color-mix(in srgb,var(--space-accent) 22%,transparent);color:#fff;box-shadow:inset 3px 0 var(--space-accent)}
-.shell .nav-count{background:color-mix(in srgb,var(--space-accent) 34%,transparent);color:#fff}
-.shell .workspace-switch select{border-inline-start:3px solid var(--space-accent);box-shadow:0 0 0 1px color-mix(in srgb,var(--space-accent) 30%,transparent)}
+.shell{--accent:var(--context-accent);--accent-soft:color-mix(in srgb,var(--context-accent) 13%,var(--surface))}
+.shell .brand-mark{background:linear-gradient(145deg,color-mix(in srgb,var(--context-accent) 74%,white),var(--context-accent));box-shadow:0 8px 18px color-mix(in srgb,var(--context-accent) 32%,transparent)}
+.shell .brand-mark:after{box-shadow:-22px 23px 0 color-mix(in srgb,var(--context-accent) 52%,#ffd77e)}
+.shell .button.primary,.shell .sidebar-create{background:var(--context-accent);box-shadow:0 4px 12px color-mix(in srgb,var(--context-accent) 24%,transparent)}
+.shell .button.primary:hover,.shell .sidebar-create:hover{background:color-mix(in srgb,var(--context-accent) 88%,#101725)}
+.shell .nav-item.active{background:color-mix(in srgb,var(--context-accent) 22%,transparent);color:#fff;box-shadow:inset 3px 0 var(--context-accent)}
+.shell .nav-count{background:color-mix(in srgb,var(--context-accent) 34%,transparent);color:#fff}
+.shell .workspace-switch select{border-inline-start:3px solid var(--context-accent);box-shadow:0 0 0 1px color-mix(in srgb,var(--context-accent) 30%,transparent)}
+.context-environment{display:inline-flex;vertical-align:middle;margin-left:9px;padding:4px 8px;border-radius:999px;font-size:10px}
+.breadcrumb>.context-environment{margin:0 0 0 9px}
+.filter-bar select[aria-label="Filtrar por ambiente"]{border-color:var(--accent)}
