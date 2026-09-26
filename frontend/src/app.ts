@@ -82,6 +82,7 @@ export class AppComponent implements OnInit {
   taskTags(){return [...new Set(this.tasks().flatMap(t=>t.tags||[]))].sort();}
   visibleEntries(){const q=this.entryQuery.toLocaleLowerCase();const list=this.view()==='library'?this.library():this.view()==='diagrams'?this.diagrams():this.notes();return list.filter(e=>(!q||(e.title+' '+e.search_text+' '+e.tags.join(' ')).toLocaleLowerCase().includes(q))&&(!this.entryClient||String(e.client_id)===this.entryClient)&&(!this.entryProject||String(e.project_id)===this.entryProject)&&(!this.entryCategory||e.category===this.entryCategory)&&(!this.entryTag||e.tags.includes(this.entryTag))&&(!this.entryType||e.media.some(m=>this.fileType(m)===this.entryType)));}
   fileType(m:Media){return m.mime.startsWith('image/')?'image':m.mime==='application/pdf'?'pdf':m.name.toLowerCase().endsWith('.sql')?'sql':m.name.toLowerCase().endsWith('.zip')?'archive':'document';}
+  isImageName(name:string){return /\.(png|jpe?g|webp|gif)$/i.test(name);}
   firstImage(e:Entry){return e.blocks.find(b=>b.type==='image')?.media_id;}
   excerpt(e:Entry){return (e.search_text||'').slice(0,180);}
   entryCategories(){return [...new Set(this.library().map(e=>e.category).filter(Boolean))];}

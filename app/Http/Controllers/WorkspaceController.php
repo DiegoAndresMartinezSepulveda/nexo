@@ -360,6 +360,19 @@ class WorkspaceController extends Controller
 
         $this->authorizeTask($r, $attachment->task);
 
+        if ($r->boolean('preview')) {
+            $extension = strtolower(pathinfo($attachment->name, PATHINFO_EXTENSION));
+            $mime = ['png' => 'image/png', 'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'webp' => 'image/webp', 'gif' => 'image/gif'][$extension] ?? null;
+            if ($mime) {
+                return Storage::disk('local')->response($attachment->path, $attachment->name, [
+                    'Content-Type' => $mime,
+                    'Content-Disposition' => 'inline; filename="'.addslashes($attachment->name).'"',
+                    'X-Content-Type-Options' => 'nosniff',
+                    'Cache-Control' => 'private, no-store',
+                ], 'inline');
+            }
+        }
+
         return Storage::disk('local')->download($attachment->path, $attachment->name, ['X-Content-Type-Options' => 'nosniff']);
 
     }
