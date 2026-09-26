@@ -66,3 +66,11 @@
 .task-form input:focus,.task-form select:focus,.task-form textarea:focus{border-color:color-mix(in srgb,var(--accent) 65%,var(--line));box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 12%,transparent);outline:none}
 [data-theme=dark] .task-card .card-top{background:color-mix(in srgb,var(--card-accent,#8b98b5) 10%,var(--surface))}
 @media(max-width:700px){.task-card .card-title{font-size:15px}.task-card .card-top{padding-top:13px}}
+
+
+/* Nexo identity mark: connected paths for tasks, ideas and projects. */
+.brand-mark{position:relative;isolation:isolate;overflow:hidden;background:linear-gradient(145deg,#7183ff 0%,#5266eb 52%,#8e62d8 100%);box-shadow:0 8px 18px #5266eb45;border:1px solid #ffffff2b;color:transparent;letter-spacing:0!important;padding:0!important;transform:rotate(-5deg);transition:transform .2s,box-shadow .2s}
+.brand-mark:before{content:'N';position:absolute;inset:0;display:grid;place-items:center;color:#fff;font-family:Inter,'Segoe UI',Arial,sans-serif;font-size:22px;font-style:normal;font-weight:800;letter-spacing:-2px;transform:rotate(5deg)}
+.brand-mark:after{content:'';position:absolute;width:9px;height:9px;right:4px;top:4px;border-radius:50%;background:#b8f2df;box-shadow:-22px 23px 0 #ffd77e;opacity:.95}
+.brand:hover .brand-mark{transform:rotate(0) scale(1.05);box-shadow:0 10px 24px #5266eb60}
+[data-theme=dark] .brand-mark{box-shadow:0 8px 20px #7183ff45}
