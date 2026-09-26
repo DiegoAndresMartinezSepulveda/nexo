@@ -243,7 +243,7 @@ class WorkspaceController extends Controller
             $title = $task->title;
             $code = 'NX-'.str_pad((string) $task->id, 3, '0', STR_PAD_LEFT);
             $fields = $task->notification_fields ?? ['title', 'code', 'status'];
-            $intro = trim($task->notification_message ?: 'Hola, la tarea quedó completada en Producción.');
+            $intro = trim($task->notification_message ?: '¡Listo! 🚀 La tarea ya está en Producción.');
             $details = [];
             if (in_array('client', $fields, true) && $task->client_id) {
                 $client = DB::table('clients')->where('workspace_id', $task->workspace_id)->where('id', $task->client_id)->first();
