@@ -159,6 +159,7 @@ export class AppComponent implements OnInit {
   userDraft={name:'',email:'',password:'',role:'editor',workspace_ids:[] as number[]};
   spaceModal=signal(false);editingSpace:number|null=null;spaceDraft={name:'',color:'blue'};
   get spaceName(){return this.spaces().find(s=>s.id===this.spaceId())?.name||'Mi espacio';}
+  get activeSpaceAccent(){const color=this.spaces().find(s=>s.id===this.spaceId())?.color||'blue';const palette:Record<string,{light:string;dark:string}>={blue:{light:'#5266eb',dark:'#93a0ff'},green:{light:'#16794f',dark:'#6bd6a4'},yellow:{light:'#9a6600',dark:'#ffd164'},red:{light:'#c34350',dark:'#ff8b97'},purple:{light:'#7551c8',dark:'#b69bff'},gray:{light:'#566579',dark:'#b9c5d8'}};return palette[color]?.[this.theme()==='dark'?'dark':'light']||palette.blue[this.theme()==='dark'?'dark':'light'];}
   roleName(role:string){return role==='admin'?'Administrador':role==='reader'?'Solo lectura':'Editor';}
   setDefaultEdit(value:boolean){this.defaultEdit.set(value);localStorage.setItem('nexo-default-edit',value?'yes':'no');}
   asset(id:any,preview=false,attachment=false){return assetUrl('/api/'+(attachment?'attachments/':'media/')+id+'?workspace='+this.spaceId()+(preview?'&preview=1':''));}
