@@ -7,9 +7,9 @@ Importa Nexo.postman_collection.json en Postman Web. La colección no incluye co
 1. En Postman Web, selecciona **Import** y carga el archivo JSON.
 2. Selecciona **Cloud Agent** para probar producción (https://diegomartinezsepulveda.cl). Para una dirección local como http://127.0.0.1:8000, usa Postman Desktop Agent.
 3. Abre las variables de la colección y escribe email y password solo en **Current value**. Márcalos como sensibles si Postman ofrece la opción. No los agregues a Git ni exportes la colección con credenciales.
-4. Ejecuta **01 · Sesión / obtener cookies** y luego **02 · Iniciar sesión**. La colección guarda los IDs automáticamente; no necesitas crear un Environment aparte.
+4. Ejecuta **01 · Sesión / obtener cookies** y luego **02 · Iniciar sesión**. La colección guarda los IDs automáticamente; no necesitas crear un Environment aparte. Si el acceso falla, la respuesta trae la pregunta y la colección guarda captcha_id/captcha_question; escribe la respuesta en captcha_answer y vuelve a ejecutar el login.
 5. Ejecuta **03 · Mis espacios** para guardar el primer workspace_id. Para probar otro espacio, cambia esa variable.
-6. Las peticiones Crear, Subir, Mover, Cambiar, Marcar y Quitar modifican datos. En producción ejecútalas solo cuando quieras realizar el cambio.
+6. Las peticiones Crear, Subir, Mover, Cambiar, Marcar y Quitar modifican datos. En producción ejecútalas solo cuando quieras realizar el cambio. Ocho errores de contraseña o CAPTCHA dentro de 15 minutos bloquean temporalmente esa IP durante 30 minutos.
 
 ## Probar fotos de perfil
 

@@ -18,8 +18,16 @@ class WorkspaceTest extends TestCase {
     }
     public function test_session_login_and_logout(): void {
         $user = User::factory()->create(['password' => bcrypt('UnaClaveSegura123!')]);
-        $this->postJson('/api/login', ['email' => $user->email, 'password' => 'incorrecta'])->assertUnprocessable();
-        $this->postJson('/api/login', ['email' => $user->email, 'password' => 'UnaClaveSegura123!'])->assertOk()->assertJsonPath('user.id', $user->id);
+        $challenge = $this->postJson('/api/login', ['email' => $user->email, 'password' => 'incorrecta'])
+            ->assertUnprocessable()->assertJsonPath('captcha_required', true)->json();
+        preg_match('/(\d+) \+ (\d+)/', $challenge['captcha_question'], $numbers);
+        $answer = (string) ((int) $numbers[1] + (int) $numbers[2]);
+        $this->postJson('/api/login', [
+            'email' => $user->email,
+            'password' => 'UnaClaveSegura123!',
+            'captcha_id' => $challenge['captcha_id'],
+            'captcha_answer' => $answer,
+        ])->assertOk()->assertJsonPath('user.id', $user->id);
         $this->assertAuthenticatedAs($user);
         $this->postJson('/api/logout')->assertNoContent();
         $this->assertGuest();

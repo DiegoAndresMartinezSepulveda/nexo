@@ -66,6 +66,18 @@
     {
       "key": "mobile_asset_token",
       "value": ""
+    },
+    {
+      "key": "captcha_id",
+      "value": ""
+    },
+    {
+      "key": "captcha_question",
+      "value": ""
+    },
+    {
+      "key": "captcha_answer",
+      "value": ""
     }
   ],
   "item": [
@@ -129,7 +141,7 @@
         },
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+          "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\",\n  \"captcha_id\": \"{{captcha_id}}\",\n  \"captcha_answer\": \"{{captcha_answer}}\"\n}",
           "options": {
             "raw": {
               "language": "json"
@@ -139,27 +151,27 @@
       },
       "event": [
         {
-          "listen": "prerequest",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "const xsrf = pm.cookies.get('XSRF-TOKEN');",
-              "if (xsrf) {",
-              "  pm.request.headers.upsert({ key: 'X-XSRF-TOKEN', value: decodeURIComponent(xsrf) });",
-              "}"
-            ]
-          }
-        },
-        {
           "listen": "test",
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test('Login correcto', () => pm.response.to.have.status(200));",
               "const data = pm.response.json();",
-              "if (data.user) {",
-              "  pm.collectionVariables.set('user_id', String(data.user.id));",
-              "  pm.collectionVariables.set('profile_user_id', String(data.user.id));",
+              "if (data.captcha_required) {",
+              "  pm.collectionVariables.set('captcha_id', data.captcha_id);",
+              "  pm.collectionVariables.set('captcha_question', data.captcha_question);",
+              "  pm.collectionVariables.set('captcha_answer', '');",
+              "  pm.test('Desafío de verificación recibido', () => pm.response.to.have.status(422));",
+              "} else if (data.blocked) {",
+              "  pm.test('Bloqueo temporal informado', () => pm.response.to.have.status(429));",
+              "} else {",
+              "  pm.test('Login correcto', () => pm.response.to.have.status(200));",
+              "  if (data.user) {",
+              "    pm.collectionVariables.set('user_id', String(data.user.id));",
+              "    pm.collectionVariables.set('profile_user_id', String(data.user.id));",
+              "  }",
+              "  pm.collectionVariables.set('captcha_id', '');",
+              "  pm.collectionVariables.set('captcha_question', '');",
+              "  pm.collectionVariables.set('captcha_answer', '');",
               "}"
             ]
           }
@@ -966,7 +978,7 @@
             "description": "Guarda el token Bearer en mobile_token y el ID del usuario en user_id/profile_user_id.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\",\n  \"captcha_id\": \"{{captcha_id}}\",\n  \"captcha_answer\": \"{{captcha_answer}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -980,12 +992,24 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('Login móvil correcto', () => pm.response.to.have.status(200));",
                   "const data = pm.response.json();",
-                  "if (data.token) pm.collectionVariables.set('mobile_token', data.token);",
-                  "if (data.user && data.user.id) {",
-                  "  pm.collectionVariables.set('user_id', String(data.user.id));",
-                  "  pm.collectionVariables.set('profile_user_id', String(data.user.id));",
+                  "if (data.captcha_required) {",
+                  "  pm.collectionVariables.set('captcha_id', data.captcha_id);",
+                  "  pm.collectionVariables.set('captcha_question', data.captcha_question);",
+                  "  pm.collectionVariables.set('captcha_answer', '');",
+                  "  pm.test('Desafío de verificación recibido', () => pm.response.to.have.status(422));",
+                  "} else if (data.blocked) {",
+                  "  pm.test('Bloqueo temporal informado', () => pm.response.to.have.status(429));",
+                  "} else {",
+                  "  pm.test('Login correcto', () => pm.response.to.have.status(200));",
+                  "  if (data.token) pm.collectionVariables.set('mobile_token', data.token);",
+                  "  if (data.user) {",
+                  "    pm.collectionVariables.set('user_id', String(data.user.id));",
+                  "    pm.collectionVariables.set('profile_user_id', String(data.user.id));",
+                  "  }",
+                  "  pm.collectionVariables.set('captcha_id', '');",
+                  "  pm.collectionVariables.set('captcha_question', '');",
+                  "  pm.collectionVariables.set('captcha_answer', '');",
                   "}"
                 ]
               }

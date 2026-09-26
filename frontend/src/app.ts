@@ -42,6 +42,7 @@ export class AppComponent implements OnInit {
   selected = signal<Task | null>(null);
   files: File[] = [];
   email = ''; password = ''; query = ''; environment = '';taskTag='';
+  loginCaptcha=signal<{id:string;question:string}|null>(null);loginCaptchaAnswer='';
   draft: Draft = this.emptyDraft();
   statusLabels: Record<string, string> = {pending: 'Pendiente', development: 'En desarrollo', review: 'En revisión', done: 'Completada'};
   environmentLabels: Record<string, string> = {backlog: 'Backlog', local: 'Local', development: 'Desarrollo', qa:'QA', certification: 'Certificación', production: 'Producción'};
@@ -248,7 +249,7 @@ export class AppComponent implements OnInit {
         firstValueFrom(this.http.get('/api/session')).catch(() => {});
       } else if (e.status === 422) {
         message = Object.values(e.error.errors || {}).flat().join(' ') || 'Revisa los campos del formulario.';
-      } else if (e.status === 429) message = 'Demasiados intentos. Espera un minuto y vuelve a intentarlo.';
+      } else if (e.status === 429) message = e.error?.blocked && e.error?.message ? e.error.message : 'Demasiados intentos. Espera un minuto y vuelve a intentarlo.';
       else if (e.status === 413) message = 'El envío supera el tamaño permitido por el servidor. Adjunta menos archivos.';
       else if (e.status === 0) message = 'No hay conexión con el servidor. Revisa tu conexión y vuelve a intentarlo.';
       else if (e.status === 403) message = 'No tienes permiso para esta acción o espacio.';
@@ -260,14 +261,23 @@ export class AppComponent implements OnInit {
     if (this.busy()) return;
     this.busy.set(true); this.error.set('');
     try {
+      const challenge=this.loginCaptcha();
+      const credentials={email:this.email,password:this.password,...(challenge?{captcha_id:challenge.id,captcha_answer:this.loginCaptchaAnswer}:{})};
       const result = isNativeMobile
-        ? await firstValueFrom(this.http.post<{user: User; token: string}>('/api/mobile/login', {email: this.email, password: this.password}))
-        : await firstValueFrom(this.http.post<{user: User}>('/api/login', {email: this.email, password: this.password}));
+        ? await firstValueFrom(this.http.post<{user: User; token: string}>('/api/mobile/login', credentials))
+        : await firstValueFrom(this.http.post<{user: User}>('/api/login', credentials));
       const mobileToken = (result as {token?: string}).token;
       if (isNativeMobile && mobileToken) localStorage.setItem('nexo-mobile-token', mobileToken);
       if (isNativeMobile) await this.refreshMobileAssetToken();
-      this.user.set(result.user); this.loadSidebarPreferences(result.user.id); this.password = ''; this.notice.set(''); await this.initializeSpaces();
-    } catch (e) { this.showError(e); } finally { this.busy.set(false); }
+      this.user.set(result.user); this.loadSidebarPreferences(result.user.id); this.password = ''; this.loginCaptcha.set(null); this.loginCaptchaAnswer=''; this.notice.set(''); await this.initializeSpaces();
+    } catch (e) {
+      if(e instanceof HttpErrorResponse){
+        const response=e.error as {captcha_required?:boolean;captcha_id?:string;captcha_question?:string;blocked?:boolean}|null;
+        if(response?.captcha_required&&response.captcha_id&&response.captcha_question){this.loginCaptcha.set({id:response.captcha_id,question:response.captcha_question});this.loginCaptchaAnswer='';}
+        else if(response?.blocked)this.loginCaptcha.set(null);
+      }
+      this.showError(e);
+    } finally { this.busy.set(false); }
   }
   async logout() {
     if (this.busy()) return;

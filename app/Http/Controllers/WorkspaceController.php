@@ -6,6 +6,7 @@ use App\Models\Attachment;
 use App\Models\Media;
 use App\Models\Task;
 use App\Support\Spaces;
+use App\Support\LoginProtection;
 use App\Support\WorkspaceContent as Content;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -18,14 +19,29 @@ use Illuminate\Validation\ValidationException;
 
 class WorkspaceController extends Controller
 {
-    public function login(Request $r)
+    public function login(Request $r, LoginProtection $protection)
     {
 
-        $credentials = $r->validate(['email' => 'required|email', 'password' => 'required|string']);
-
-        if (! Auth::attempt($credentials)) {
-            throw ValidationException::withMessages(['email' => 'El correo o la contraseña no coinciden.']);
+        if ($blocked = $protection->blockedResponse($r)) {
+            return $blocked;
         }
+
+        $credentials = $r->validate([
+            'email' => 'required|email',
+            'password' => 'required|string',
+            'captcha_id' => 'nullable|string|max:64',
+            'captcha_answer' => 'nullable|string|max:20',
+        ]);
+
+        if (! $protection->verifyCaptchaIfRequired($r)) {
+            return $protection->failed($r, 'captcha_answer', 'La verificación no es correcta o venció.');
+        }
+
+        if (! Auth::attempt(['email' => $credentials['email'], 'password' => $credentials['password']])) {
+            return $protection->failed($r, 'email', 'El correo o la contraseña no coinciden.');
+        }
+
+        $protection->succeeded($r);
 
         $r->session()->regenerate();
 
