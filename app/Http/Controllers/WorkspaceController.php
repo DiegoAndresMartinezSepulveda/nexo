@@ -224,13 +224,30 @@ class WorkspaceController extends Controller
 
         $this->authorizeTask($r, $task);
 
-        $data = $r->validate(['status' => ['required', Rule::in(array_keys(Task::STATUSES))], 'environment' => ['required', Rule::in(array_keys(Task::ENVIRONMENTS))]]);
+        $data = $r->validate(['status' => ['required', Rule::in(array_keys(Task::STATUSES))], 'environment' => ['required', Rule::in(array_keys(Task::ENVIRONMENTS))], 'rollback_reason' => 'nullable|string|max:5000']);
+
+        $returningFromProduction = $task->environment === 'production'
+            && $task->status === 'done'
+            && $data['environment'] === 'development';
+        $reason = trim((string) ($data['rollback_reason'] ?? ''));
+        if ($returningFromProduction && $reason === '') {
+            throw ValidationException::withMessages(['rollback_reason' => 'Explica qué falló antes de devolver la tarea a Desarrollo.']);
+        }
+        unset($data['rollback_reason']);
 
         $this->validateState($data['environment'], $data['status'], $task);
 
-        DB::transaction(function () use ($r, $task, $data) {
+        DB::transaction(function () use ($r, $task, $data, $returningFromProduction, $reason) {
+            if ($returningFromProduction) {
+                $data['production_return_reason'] = $reason;
+                $data['production_returned_at'] = now();
+            }
             $task->update($data);
-            Content::log($r->user()->id, 'Movida a '.Task::ENVIRONMENTS[$task->environment].' · '.Task::STATUSES[$task->status], 'task', $task->id, $task->title);
+            $action = 'Movida a '.Task::ENVIRONMENTS[$task->environment].' · '.Task::STATUSES[$task->status];
+            if ($returningFromProduction) {
+                $action .= ' · Motivo: '.mb_substr($reason, 0, 180);
+            }
+            Content::log($r->user()->id, $action, 'task', $task->id, $task->title);
         });
 
         $this->resetProductionNotificationIfNeeded($task);

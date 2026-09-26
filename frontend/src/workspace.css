@@ -103,3 +103,9 @@
 .board-toolbar .zoom-tools button:hover{background:var(--accent-soft);color:var(--accent)}
 .board-toolbar .zoom-tools button:nth-child(2){min-width:48px;font-size:10px}
 @media(max-width:700px){.whiteboard-shell.canvas-fullscreen{inset:6px;border-radius:12px}.whiteboard-shell.canvas-fullscreen .board-toolbar{bottom:10px}.whiteboard-shell.canvas-fullscreen .object-toolbar{bottom:86px}}
+
+
+/* Production feedback: keep the failure visible while the task is corrected. */
+.return-label{display:inline-flex;align-items:center;gap:5px;margin:10px 0 0;padding:5px 8px;border-radius:6px;background:#fff0e1;color:#a45b24;border:1px solid #f1cfad;font-size:10px;font-weight:800;letter-spacing:.35px}
+.rollback-warning{display:grid;gap:4px;margin:12px 0 6px;padding:12px 13px;border-left:4px solid #d97732;border-radius:0 9px 9px 0;background:#fff6ed;color:#7c431d}.rollback-warning span{font-size:12px;color:#965d35}.task-form textarea#move-reason{min-height:92px;resize:vertical}.return-history{margin:20px 0;padding:15px 17px;border-left:4px solid #d97732;border-radius:0 10px 10px 0;background:#fff6ed}.return-history h2{margin:0 0 7px;font-size:15px;color:#7c431d}.return-history p{margin:0 0 8px;white-space:pre-wrap}.return-history small{color:#965d35}
+[data-theme=dark] .return-label{background:#4b3326;color:#ffd4a8;border-color:#795036}[data-theme=dark] .rollback-warning,[data-theme=dark] .return-history{background:#3b2b22;color:#ffe2c2}.return-history h2{color:inherit}.rollback-warning span,.return-history small{color:#e6b98a}

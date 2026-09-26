@@ -16,6 +16,7 @@ Nexo conserva la estructura de instalación existente: la carpeta privada sigue 
 - Vista de bugs con estados, prioridades, etiquetas y el mismo editor ordenado de las tareas.
 - Autoguardado de tareas, notas, biblioteca y diagramas existentes mientras editas.
 - Aviso opcional por correo al completar una tarea en Producción, con destinatarios, mensaje y campos de la tarjeta elegidos por ti.
+- Regreso controlado desde Producción a Desarrollo: exige anotar qué falló, lo muestra en la tarjeta y conserva el motivo en el historial.
 - Avisos flotantes y pantallas de carga al cambiar de contexto.
 - Fecha límite retirada de la interfaz. Los valores antiguos se conservan en la base.
 - Incendio: marca independiente de la prioridad, con tarjeta roja.
@@ -116,6 +117,8 @@ bash deploy/update-hostinger.sh
 El script usa PHP 8.2, instala dependencias con Composer, ejecuta migraciones, copia solo los archivos públicos y reconstruye las cachés. Si falla, deja mantenimiento activo para que puedas revisar el error. No ejecuta `git pull` automáticamente ni cambia tu configuración privada.
 
 ## Guardado de notas y archivos
+
+Si una tarea completada en Producción vuelve a Desarrollo, Nexo exige escribir el motivo del fallo. Ese texto queda guardado en la tarea, aparece como aviso visual y se agrega al historial para consultar qué ocurrió después.
 
 Las tareas, notas, biblioteca y diagramas ya guardados se autoguardan mientras los editas. Para crear un elemento nuevo se pulsa Guardar la primera vez. Las imágenes se suben de forma privada al pegar o elegir el archivo y se asocian a la tarea/nota al guardar. Los archivos de borradores abandonados se pueden limpiar después de 24 horas:
 

@@ -93,6 +93,9 @@ class WorkspaceV2Test extends TestCase
         $this->patchJson("/api/tasks/$id/move", ['environment' => 'production', 'status' => 'done'])->assertOk();
         $this->patchJson("/api/tasks/$id/move", ['environment' => 'qa', 'status' => 'pending'])->assertUnprocessable();
         $this->patchJson("/api/tasks/$id/move", ['environment' => 'development', 'status' => 'pending'])->assertUnprocessable();
+        $this->patchJson("/api/tasks/$id/move", ['environment' => 'development', 'status' => 'development'])->assertUnprocessable()->assertJsonValidationErrors('rollback_reason');
+        $this->patchJson("/api/tasks/$id/move", ['environment' => 'development', 'status' => 'development', 'rollback_reason' => 'Falló la carga con clientes nuevos.'])->assertOk()->assertJsonPath('production_return_reason', 'Falló la carga con clientes nuevos.');
+        $this->assertDatabaseHas('tasks', ['id' => $id, 'production_return_reason' => 'Falló la carga con clientes nuevos.']);
         $this->putJson('/api/tasks/'.$id, $payload + ['client_id' => null])->assertOk()->assertJsonPath('notes_blocks.0.html', '<b>Revisar</b>');
     }
 
