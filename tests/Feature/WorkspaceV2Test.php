@@ -121,6 +121,54 @@ class WorkspaceV2Test extends TestCase
         $this->assertStringNotContainsString('Código:', $body);
     }
 
+    public function test_selected_environment_email_is_sent_once_when_task_enters_that_environment(): void
+    {
+        $this->actingAs(User::factory()->create());
+        $payload = ['title' => 'Revisar el módulo', 'status' => 'development', 'environment' => 'local', 'priority' => 'normal', 'notify_on_production' => true, 'notify_emails' => 'persona@example.com', 'notify_include_status' => true, 'email_notification_events_present' => true, 'email_notification_events' => ['qa']];
+        $id = $this->postJson('/api/tasks', $payload)->assertCreated()->json('id');
+
+        $this->patchJson("/api/tasks/$id/move", ['environment' => 'qa', 'status' => 'review'])
+            ->assertOk()->assertJsonPath('notification', 'sent');
+        $task = Task::findOrFail($id);
+        $this->assertNotNull($task->environment_entered_at);
+        $this->assertNotNull($task->environment_notification_notified_at);
+        $messages = Mail::mailer()->getSymfonyTransport()->messages();
+        $this->assertCount(1, $messages);
+        $message = $messages->first()->getOriginalMessage();
+        $this->assertSame('Revisar el módulo pasó a QA', $message->getSubject());
+        $this->assertStringContainsString('La tarea pasó a QA.', $message->getTextBody());
+        $this->assertStringContainsString('QA · En revisión', $message->getTextBody());
+
+        $this->patchJson("/api/tasks/$id/move", ['environment' => 'qa', 'status' => 'review'])
+            ->assertOk()->assertJsonPath('notification', 'not_requested');
+        $this->assertCount(1, Mail::mailer()->getSymfonyTransport()->messages());
+    }
+
+    public function test_entering_completed_production_with_both_email_rules_sends_one_message(): void
+    {
+        $this->actingAs(User::factory()->create());
+        $payload = ['title' => 'Publicar sitio', 'status' => 'development', 'environment' => 'local', 'priority' => 'normal', 'notify_on_production' => true, 'notify_emails' => 'persona@example.com', 'email_notification_events_present' => true, 'email_notification_events' => ['production_completed', 'production']];
+        $id = $this->postJson('/api/tasks', $payload)->assertCreated()->json('id');
+
+        $this->patchJson("/api/tasks/$id/move", ['environment' => 'production', 'status' => 'done'])
+            ->assertOk()->assertJsonPath('notification', 'sent');
+        $task = Task::findOrFail($id);
+        $this->assertNotNull($task->production_notified_at);
+        $this->assertNotNull($task->environment_notification_notified_at);
+        $this->assertCount(1, Mail::mailer()->getSymfonyTransport()->messages());
+    }
+
+    public function test_completing_production_from_the_board_sends_the_default_email(): void
+    {
+        $this->actingAs(User::factory()->create());
+        $payload = ['title' => 'Cerrar entrega', 'status' => 'review', 'environment' => 'production', 'priority' => 'normal', 'notify_on_production' => true, 'notify_emails' => 'persona@example.com'];
+        $id = $this->postJson('/api/tasks', $payload)->assertCreated()->json('id');
+
+        $this->patchJson("/api/tasks/$id/status", ['status' => 'done'])
+            ->assertOk()->assertJsonPath('notification', 'sent');
+        $this->assertCount(1, Mail::mailer()->getSymfonyTransport()->messages());
+    }
+
     public function test_catalogs_are_owner_scoped_and_project_client_must_match(): void
     {
         $owner = User::factory()->create();

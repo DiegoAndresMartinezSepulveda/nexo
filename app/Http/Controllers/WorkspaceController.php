@@ -93,7 +93,7 @@ class WorkspaceController extends Controller
             'priority' => ['required', Rule::in(array_keys(Task::PRIORITIES))],
 
             'due_date' => 'nullable|date_format:Y-m-d', 'estimated_delivery_at' => 'nullable|date', 'autosave' => 'sometimes|boolean', 'checklist_text' => 'nullable|string|max:10000',
-            'notify_on_production' => 'sometimes|boolean', 'notify_emails' => 'nullable|string|max:2000', 'notification_message' => 'nullable|string|max:5000', 'notify_message_on_production' => 'sometimes|boolean', 'notify_message_emails' => 'nullable|string|max:2000', 'notification_message_short' => 'nullable|string|max:2000', 'tags' => 'nullable|string|max:1000',
+            'notify_on_production' => 'sometimes|boolean', 'notify_emails' => 'nullable|string|max:2000', 'notification_message' => 'nullable|string|max:5000', 'email_notification_events_present' => 'sometimes|boolean', 'email_notification_events' => 'sometimes|array|max:7', 'email_notification_events.*' => ['string', Rule::in(array_merge(['production_completed'], array_keys(Task::ENVIRONMENTS)))], 'notify_message_on_production' => 'sometimes|boolean', 'notify_message_emails' => 'nullable|string|max:2000', 'notification_message_short' => 'nullable|string|max:2000', 'tags' => 'nullable|string|max:1000',
             'notify_include_client' => 'sometimes|boolean', 'notify_include_project' => 'sometimes|boolean', 'notify_include_title' => 'sometimes|boolean', 'notify_include_description' => 'sometimes|boolean', 'notify_include_code' => 'sometimes|boolean',
             'notify_include_status' => 'sometimes|boolean', 'notify_include_checklist' => 'sometimes|boolean', 'environment_return_resolved' => 'sometimes|boolean', 'environment_return_solution' => 'nullable|string|max:10000',
 
@@ -103,6 +103,12 @@ class WorkspaceController extends Controller
 
         $autosave = (bool) ($data['autosave'] ?? false);
         unset($data['autosave']);
+        if (array_key_exists('email_notification_events_present', $data)) {
+            $data['email_notification_events'] = array_values(array_unique($data['email_notification_events'] ?? []));
+            unset($data['email_notification_events_present']);
+        } else {
+            $data['email_notification_events'] = $data['email_notification_events'] ?? $task->email_notification_events ?? ['production_completed'];
+        }
         Content::validateProject(array_replace($task->only(['client_id', 'project_id']), $data));
 
         $this->validateState($data['environment'], $data['status'], $task);
@@ -151,8 +157,12 @@ class WorkspaceController extends Controller
             DB::transaction(function () use ($r, $task, $data, &$paths, $wasReturnResolved) {
 
                 $new = ! $task->exists;
+                $environmentChanged = $new || $task->environment !== ($data['environment'] ?? $task->environment);
 
                 $task->fill($data);
+                if ($environmentChanged) {
+                    $this->prepareEnvironmentEmailEntry($task);
+                }
                 $task->user_id ??= $r->user()->id;
                 $task->workspace_id = Spaces::id();
                 $task->save();
@@ -193,7 +203,7 @@ class WorkspaceController extends Controller
         }
 
         $this->resetProductionNotificationIfNeeded($task);
-        $mail = $autosave ? 'not_requested' : $this->notifyProduction($task);
+        $mail = $autosave ? 'not_requested' : $this->notifyTaskEmail($task);
 
         return response()->json($task->load('attachments')->setAttribute('notification', $mail), $task->wasRecentlyCreated ? 201 : 200);
 
@@ -220,9 +230,10 @@ class WorkspaceController extends Controller
         $this->validateState($task->environment, $data['status'], $task);
         $task->update($data);
         $this->resetProductionNotificationIfNeeded($task);
+        $mail = $this->notifyTaskEmail($task);
 
         Content::log($r->user()->id, 'Estado: '.Task::STATUSES[$task->status], 'task', $task->id, $task->title);
-        return response()->json($task);
+        return response()->json($task->setAttribute('notification', $mail));
 
     }
 
@@ -252,6 +263,7 @@ class WorkspaceController extends Controller
         $this->validateState($data['environment'], $data['status'], $task);
 
         DB::transaction(function () use ($r, $task, $data, $returningToEarlierEnvironment, $reason) {
+            $environmentChanged = $task->environment !== $data['environment'];
             if ($returningToEarlierEnvironment) {
                 $returnedAt = now();
                 $data['environment_return_from'] = $task->environment;
@@ -266,6 +278,10 @@ class WorkspaceController extends Controller
                     $data['production_returned_at'] = $returnedAt;
                 }
             }
+            if ($environmentChanged) {
+                $data['environment_entered_at'] = now();
+                $data['environment_notification_notified_at'] = $this->environmentEmailIsSelected($task, $data['environment']) ? null : $data['environment_entered_at'];
+            }
             $task->update($data);
             $action = 'Movida a '.Task::ENVIRONMENTS[$task->environment].' · '.Task::STATUSES[$task->status];
             if ($returningToEarlierEnvironment) {
@@ -275,7 +291,8 @@ class WorkspaceController extends Controller
         });
 
         $this->resetProductionNotificationIfNeeded($task);
-        return response()->json($task);
+        $mail = $this->notifyTaskEmail($task);
+        return response()->json($task->setAttribute('notification', $mail));
 
     }
 
@@ -288,22 +305,83 @@ class WorkspaceController extends Controller
         return $fromPosition !== false && $toPosition !== false && $fromPosition > $toPosition;
     }
 
-    private function notifyProduction(Task $task): string
+    private function emailNotificationEvents(Task $task): array
     {
-        $emailPending = $task->notify_on_production && count($task->notify_emails ?? []) && ! $task->production_notified_at;
-        if (! $emailPending || $task->environment !== 'production' || $task->status !== 'done') {
+        return $task->email_notification_events ?? ['production_completed'];
+    }
+
+    private function environmentEmailIsSelected(Task $task, string $environment): bool
+    {
+        return (bool) $task->notify_on_production
+            && count($task->notify_emails ?? []) > 0
+            && in_array($environment, $this->emailNotificationEvents($task), true);
+    }
+
+    private function prepareEnvironmentEmailEntry(Task $task): void
+    {
+        $enteredAt = now();
+        $task->environment_entered_at = $enteredAt;
+        $task->environment_notification_notified_at = $this->environmentEmailIsSelected($task, $task->environment)
+            ? null
+            : $enteredAt;
+    }
+
+    private function notifyTaskEmail(Task $task): string
+    {
+        if (! $task->notify_on_production || ! count($task->notify_emails ?? [])) {
             return 'not_requested';
         }
-        $claimedAt = now();
-        if (! Task::whereKey($task->id)->whereNull('production_notified_at')->update(['production_notified_at' => $claimedAt])) {
+
+        $events = $this->emailNotificationEvents($task);
+        $completionEligible = in_array('production_completed', $events, true)
+            && $task->environment === 'production'
+            && $task->status === 'done'
+            && ! $task->production_notified_at;
+        $entryAt = $task->environment_entered_at;
+        $entryPending = $entryAt
+            && in_array($task->environment, $events, true)
+            && (! $task->environment_notification_notified_at || $task->environment_notification_notified_at->lt($entryAt));
+
+        $claimedAt = null;
+        $claimedCompletion = false;
+        if ($completionEligible) {
+            $claimedAt = now();
+            $claimedCompletion = (bool) Task::whereKey($task->id)->whereNull('production_notified_at')->update(['production_notified_at' => $claimedAt]);
+        }
+
+        $claimedEntry = false;
+        if ($entryPending) {
+            $claimedEntry = (bool) Task::whereKey($task->id)
+                ->where('environment', $task->environment)
+                ->where('environment_entered_at', $entryAt)
+                ->where(function ($query) {
+                    $query->whereNull('environment_notification_notified_at')
+                        ->orWhereColumn('environment_notification_notified_at', '<', 'environment_entered_at');
+                })
+                ->update(['environment_notification_notified_at' => $entryAt]);
+        }
+
+        if (! $claimedCompletion && ! $claimedEntry) {
             return 'not_requested';
         }
-        $task->production_notified_at = $claimedAt;
+        if ($claimedCompletion) {
+            $task->production_notified_at = $claimedAt;
+        }
+        if ($claimedEntry) {
+            $task->environment_notification_notified_at = $entryAt;
+        }
+
         try {
             $title = $task->title;
             $code = 'NX-'.str_pad((string) $task->id, 3, '0', STR_PAD_LEFT);
             $fields = $task->notification_fields ?? ['title', 'code', 'status'];
-            $intro = trim($task->notification_message ?: '¡Listo! 🚀 La tarea ya está en Producción.');
+            $legacyIntro = '¡Listo! 🚀 La tarea ya está en Producción.';
+            $environmentLabel = Task::ENVIRONMENTS[$task->environment] ?? $task->environment;
+            $heading = $claimedCompletion ? 'Producción completada' : 'Tarea movida a '.$environmentLabel;
+            $intro = trim($task->notification_message ?: ($claimedCompletion ? $legacyIntro : 'La tarea pasó a '.$environmentLabel.'.'));
+            if (! $claimedCompletion && $intro === $legacyIntro) {
+                $intro = 'La tarea pasó a '.$environmentLabel.'.';
+            }
             $details = [];
             if (in_array('client', $fields, true) && $task->client_id) {
                 $client = DB::table('clients')->where('workspace_id', $task->workspace_id)->where('id', $task->client_id)->first();
@@ -327,7 +405,7 @@ class WorkspaceController extends Controller
                 $details['description'] = $task->description;
             }
             if (in_array('status', $fields, true)) {
-                $details['status'] = 'Producción · Completada';
+                $details['status'] = $environmentLabel.' · '.(Task::STATUSES[$task->status] ?? $task->status);
             }
             if (in_array('checklist', $fields, true) && count($task->checklist ?? [])) {
                 $details['checklist'] = $task->checklist;
@@ -338,27 +416,33 @@ class WorkspaceController extends Controller
             }
             $labels = ['client' => 'Cliente', 'project' => 'Proyecto', 'code' => 'Código', 'title' => 'Tarea', 'description' => 'Descripción', 'status' => 'Ambiente/Estado', 'checklist' => 'Checklist', 'attachments' => 'Archivos adjuntos'];
             $body = $intro.(count($details) ? "\n\n".collect($details)->map(fn ($value, $label) => ($labels[$label] ?? ucfirst($label)).': '.(is_array($value) ? "\n".collect($value)->map(fn ($step) => (($step['done'] ?? false) ? '☑' : '☐').' '.($step['text'] ?? ''))->join("\n") : $value))->join("\n\n") : '')."\n\nEste aviso fue enviado automáticamente por Nexo.";
-            $html = view('emails.production-completed', compact('intro', 'title', 'code', 'details'))->render();
-            if ($emailPending) {
-                Mail::send([], [], function ($message) use ($task, $title, $body, $html, $attachments) {
-                    $message->to($task->notify_emails)
-                        ->subject("{$title} ya está en Producción")
-                        ->text($body)
-                        ->html($html);
-                    foreach ($attachments as $attachment) {
-                        $path = Storage::disk('local')->path($attachment->path);
-                        if (is_file($path)) {
-                            $message->attach($path, ['as' => $attachment->name]);
-                        }
+            $html = view('emails.production-completed', compact('intro', 'title', 'code', 'details', 'heading'))->render();
+            $subject = $claimedCompletion ? "{$title} ya está en Producción" : "{$title} pasó a {$environmentLabel}";
+            Mail::send([], [], function ($message) use ($task, $subject, $body, $html, $attachments) {
+                $message->to($task->notify_emails)
+                    ->subject($subject)
+                    ->text($body)
+                    ->html($html);
+                foreach ($attachments as $attachment) {
+                    $path = Storage::disk('local')->path($attachment->path);
+                    if (is_file($path)) {
+                        $message->attach($path, ['as' => $attachment->name]);
                     }
-                });
-            }
-            Content::log($task->user_id, 'Aviso de producción enviado', 'task', $task->id, $task->title);
+                }
+            });
+            Content::log($task->user_id, $claimedCompletion ? 'Aviso de producción enviado' : 'Aviso de cambio de ambiente enviado', 'task', $task->id, $task->title);
 
             return 'sent';
         } catch (\Throwable $e) {
-            $task->forceFill(['production_notified_at' => null, 'production_message_notified_at' => null])->saveQuietly();
-            Log::error('No se pudo enviar la notificación de producción', ['task_id' => $task->id, 'error' => $e->getMessage()]);
+            if ($claimedCompletion) {
+                Task::whereKey($task->id)->where('production_notified_at', $claimedAt)->update(['production_notified_at' => null]);
+                $task->production_notified_at = null;
+            }
+            if ($claimedEntry) {
+                Task::whereKey($task->id)->where('environment_entered_at', $entryAt)->where('environment_notification_notified_at', $entryAt)->update(['environment_notification_notified_at' => null]);
+                $task->environment_notification_notified_at = null;
+            }
+            Log::error('No se pudo enviar la notificación por correo', ['task_id' => $task->id, 'error' => $e->getMessage()]);
 
             return 'failed';
         }
