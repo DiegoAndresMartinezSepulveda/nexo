@@ -55,6 +55,8 @@ Route::prefix('api')->group(function () {
             Route::post('/notification-contacts', [AdministrationController::class, 'saveNotificationContact']);
             Route::put('/notification-contacts/{id}', [AdministrationController::class, 'saveNotificationContact']);
             Route::delete('/notification-contacts/{id}', [AdministrationController::class, 'deleteNotificationContact']);
+            Route::get('/workflow', [Workspace::class, 'workflow']);
+            Route::put('/workflow', [Workspace::class, 'saveWorkflow']);
             Route::post('/entries', [Content::class, 'save']);
             Route::get('/entries/{entry}', [Content::class, 'show']);
             Route::put('/entries/{entry}', [Content::class, 'save']);

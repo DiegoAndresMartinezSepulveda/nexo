@@ -68,7 +68,22 @@ class WorkspaceTest extends TestCase {
     public function test_invalid_states_and_executable_uploads_are_rejected(): void {
         Storage::fake('local'); $this->actingAs(User::factory()->create());
         $this->postJson('/api/tasks', $this->payload(['status' => 'inventado']))->assertUnprocessable();
+        $this->postJson('/api/tasks', $this->payload(['status' => 'development']))->assertUnprocessable();
+        $this->postJson('/api/tasks', $this->payload(['status' => 'review']))->assertUnprocessable();
+        $this->postJson('/api/tasks', $this->payload(['status' => 'done']))->assertUnprocessable();
         $this->post('/api/tasks', $this->payload(['files' => [UploadedFile::fake()->createWithContent('shell.php', '<?php echo 1;')]]), ['Accept' => 'application/json'])->assertUnprocessable();
         $this->assertDatabaseCount('tasks', 0);
+    }
+    public function test_admin_can_customize_workflow_without_deleting_existing_tasks(): void {
+        $this->actingAs(User::factory()->create(['role' => 'admin']));
+        $task = $this->postJson('/api/tasks', $this->payload())->assertCreated()->json('id');
+        $workflow = $this->getJson('/api/workflow')->assertOk()->json();
+        $workflow['statuses'][] = ['key' => 'blocked', 'label' => 'Bloqueada', 'active' => true];
+        $workflow['environments'][] = ['key' => 'staging', 'label' => 'Preproducción', 'active' => true, 'allowed_statuses' => ['blocked']];
+        $this->putJson('/api/workflow', $workflow)->assertOk()->assertJsonPath('environments.6.key', 'staging');
+        $this->postJson('/api/tasks', $this->payload(['environment' => 'staging', 'status' => 'blocked']))->assertCreated();
+        $workflow['environments'][0]['active'] = false;
+        $this->putJson('/api/workflow', $workflow)->assertOk();
+        $this->getJson('/api/tasks')->assertJsonFragment(['id' => $task, 'environment' => 'backlog']);
     }
 }

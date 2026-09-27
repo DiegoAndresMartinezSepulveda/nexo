@@ -10,6 +10,7 @@ use App\Support\Spaces;
 use App\Support\LoginProtection;
 use App\Support\AuditLogger;
 use App\Support\TwoFactorAuth;
+use App\Support\Workflow;
 use App\Support\WorkspaceContent as Content;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -98,7 +99,8 @@ class WorkspaceController extends Controller
     public function index(Request $r)
     {
 
-        $f = $r->validate(['q' => 'nullable|string|max:200', 'environment' => ['nullable', Rule::in(array_keys(Task::ENVIRONMENTS))]]);
+        $workflow = Workflow::forWorkspace(Spaces::id());
+        $f = $r->validate(['q' => 'nullable|string|max:200', 'environment' => ['nullable', Rule::in(Workflow::environmentKeys($workflow))]]);
 
         $base = Task::where('workspace_id', Spaces::id());
 
@@ -110,6 +112,24 @@ class WorkspaceController extends Controller
 
         return response()->json(compact('tasks', 'counts'));
 
+    }
+
+    public function workflow(Request $r)
+    {
+        return response()->json(Workflow::forWorkspace(Spaces::id()));
+    }
+
+    public function saveWorkflow(Request $r)
+    {
+        abort_unless($r->user()->role === 'admin', 403);
+        $data = $r->validate([
+            'statuses' => 'required|array|min:1|max:20',
+            'environments' => 'required|array|min:1|max:20',
+        ]);
+        $workflow = Workflow::save(Spaces::id(), $data);
+        AuditLogger::record($r, 'admin.workflow.updated', 'Flujo del espacio actualizado', 'workspace', Spaces::id(), 'Flujo', Spaces::id(), ['fields' => ['statuses', 'environments']]);
+
+        return response()->json($workflow);
     }
 
     private function authorizeTask(Request $r, Task $task): void
@@ -126,19 +146,20 @@ class WorkspaceController extends Controller
 
     private function save(Request $r, Task $task)
     {
+        $workflow = Workflow::forWorkspace(Spaces::id());
 
         $data = $r->validate(Content::rules($r->user()->id, 'notes_blocks') + Content::rules($r->user()->id, 'description_blocks') + [
 
             'is_fire' => 'sometimes|boolean', 'task_type' => ['sometimes', Rule::in(['task', 'bug'])], 'sql_notes' => 'nullable|string|max:50000', 'title' => 'required|string|max:180', 'description' => 'nullable|string|max:20000',
 
-            'status' => ['required', Rule::in(array_keys(Task::STATUSES))],
+            'status' => ['required', Rule::in(Workflow::statusKeys($workflow))],
 
-            'environment' => ['required', Rule::in(array_keys(Task::ENVIRONMENTS))],
+            'environment' => ['required', Rule::in(Workflow::environmentKeys($workflow))],
 
             'priority' => ['required', Rule::in(array_keys(Task::PRIORITIES))],
 
             'due_date' => 'nullable|date_format:Y-m-d', 'estimated_delivery_at' => 'nullable|date', 'autosave' => 'sometimes|boolean', 'checklist_text' => 'nullable|string|max:10000',
-            'notify_on_production' => 'sometimes|boolean', 'notify_emails' => 'nullable|string|max:2000', 'notification_message' => 'nullable|string|max:5000', 'email_notification_events_present' => 'sometimes|boolean', 'email_notification_events' => 'sometimes|array|max:7', 'email_notification_events.*' => ['string', Rule::in(array_merge(['production_completed'], array_keys(Task::ENVIRONMENTS)))], 'notify_message_on_production' => 'sometimes|boolean', 'notify_message_emails' => 'nullable|string|max:2000', 'notification_message_short' => 'nullable|string|max:2000', 'tags' => 'nullable|string|max:1000',
+            'notify_on_production' => 'sometimes|boolean', 'notify_emails' => 'nullable|string|max:2000', 'notification_message' => 'nullable|string|max:5000', 'email_notification_events_present' => 'sometimes|boolean', 'email_notification_events' => 'sometimes|array|max:21', 'email_notification_events.*' => ['string', Rule::in(array_merge(['production_completed'], Workflow::environmentKeys($workflow)))], 'notify_message_on_production' => 'sometimes|boolean', 'notify_message_emails' => 'nullable|string|max:2000', 'notification_message_short' => 'nullable|string|max:2000', 'tags' => 'nullable|string|max:1000',
             'notify_include_client' => 'sometimes|boolean', 'notify_include_project' => 'sometimes|boolean', 'notify_include_title' => 'sometimes|boolean', 'notify_include_description' => 'sometimes|boolean', 'notify_include_code' => 'sometimes|boolean',
             'notify_include_status' => 'sometimes|boolean', 'notify_include_checklist' => 'sometimes|boolean', 'environment_return_resolved' => 'sometimes|boolean', 'environment_return_solution' => 'nullable|string|max:10000',
 
@@ -156,7 +177,7 @@ class WorkspaceController extends Controller
         }
         Content::validateProject(array_replace($task->only(['client_id', 'project_id']), $data));
 
-        $this->validateState($data['environment'], $data['status'], $task);
+        $this->validateState($workflow, $data['environment'], $data['status'], $task);
 
         if (array_key_exists('notes_blocks', $data)) {
             $data['notes_blocks'] = Content::blocks($data['notes_blocks']);
@@ -270,23 +291,24 @@ class WorkspaceController extends Controller
     {
 
         $this->authorizeTask($r, $task);
-        $data = $r->validate(['status' => ['required', Rule::in(array_keys(Task::STATUSES))]]);
+        $workflow = Workflow::forWorkspace(Spaces::id());
+        $data = $r->validate(['status' => ['required', Rule::in(Workflow::statusKeys($workflow))]]);
 
-        $this->validateState($task->environment, $data['status'], $task);
+        $this->validateState($workflow, $task->environment, $data['status'], $task);
         $task->update($data);
         $this->resetProductionNotificationIfNeeded($task);
         $mail = $this->notifyTaskEmail($task);
 
-        Content::log($r->user()->id, 'Estado: '.Task::STATUSES[$task->status], 'task', $task->id, $task->title, ['fields' => array_keys($task->getChanges())]);
+        Content::log($r->user()->id, 'Estado: '.Workflow::statusLabel($workflow, $task->status), 'task', $task->id, $task->title, ['fields' => array_keys($task->getChanges())]);
         return response()->json($task->setAttribute('notification', $mail));
 
     }
 
-    private function validateState(string $environment, string $status, ?Task $task = null): void
+    private function validateState(array $workflow, string $environment, string $status, ?Task $task = null): void
     {
-        $legacyPending = $task && $task->status === 'pending' && $task->environment === $environment && $status === 'pending';
-        if (! $legacyPending && ! in_array($status, Task::allowedStatuses($environment))) {
-            throw ValidationException::withMessages(['status' => 'Ese estado no corresponde al ambiente seleccionado. Certificación usa revisión; QA y Producción usan revisión o completada.']);
+        $unchangedArchivedValue = $task && $task->environment === $environment && $task->status === $status;
+        if (! $unchangedArchivedValue && (!Workflow::environmentIsActive($workflow, $environment) || !Workflow::statusIsActive($workflow, $status) || !in_array($status, Workflow::allowedStatuses($workflow, $environment), true))) {
+            throw ValidationException::withMessages(['status' => 'Ese estado no está disponible para el ambiente seleccionado. Revisa la configuración del flujo.']);
         }
 
     }
@@ -295,19 +317,20 @@ class WorkspaceController extends Controller
     {
 
         $this->authorizeTask($r, $task);
+        $workflow = Workflow::forWorkspace(Spaces::id());
 
-        $data = $r->validate(['status' => ['required', Rule::in(array_keys(Task::STATUSES))], 'environment' => ['required', Rule::in(array_keys(Task::ENVIRONMENTS))], 'rollback_reason' => 'nullable|string|max:5000']);
+        $data = $r->validate(['status' => ['required', Rule::in(Workflow::statusKeys($workflow))], 'environment' => ['required', Rule::in(Workflow::environmentKeys($workflow))], 'rollback_reason' => 'nullable|string|max:5000']);
 
-        $returningToEarlierEnvironment = $this->isEnvironmentReturn($task->environment, $data['environment']);
+        $returningToEarlierEnvironment = $this->isEnvironmentReturn($workflow, $task->environment, $data['environment']);
         $reason = trim((string) ($data['rollback_reason'] ?? ''));
         if ($returningToEarlierEnvironment && $reason === '') {
             throw ValidationException::withMessages(['rollback_reason' => 'Explica qué falló antes de devolver la tarea a un ambiente anterior.']);
         }
         unset($data['rollback_reason']);
 
-        $this->validateState($data['environment'], $data['status'], $task);
+        $this->validateState($workflow, $data['environment'], $data['status'], $task);
 
-        DB::transaction(function () use ($r, $task, $data, $returningToEarlierEnvironment, $reason) {
+        DB::transaction(function () use ($r, $task, $data, $returningToEarlierEnvironment, $reason, $workflow) {
             $environmentChanged = $task->environment !== $data['environment'];
             if ($returningToEarlierEnvironment) {
                 $returnedAt = now();
@@ -328,7 +351,7 @@ class WorkspaceController extends Controller
                 $data['environment_notification_notified_at'] = $this->environmentEmailIsSelected($task, $data['environment']) ? null : $data['environment_entered_at'];
             }
             $task->update($data);
-            $action = 'Movida a '.Task::ENVIRONMENTS[$task->environment].' · '.Task::STATUSES[$task->status];
+            $action = 'Movida a '.Workflow::environmentLabel($workflow, $task->environment).' · '.Workflow::statusLabel($workflow, $task->status);
             if ($returningToEarlierEnvironment) {
                 $action .= ' · Error registrado: '.mb_substr($reason, 0, 180);
             }
@@ -341,9 +364,9 @@ class WorkspaceController extends Controller
 
     }
 
-    private function isEnvironmentReturn(string $from, string $to): bool
+    private function isEnvironmentReturn(array $workflow, string $from, string $to): bool
     {
-        $order = ['backlog', 'local', 'development', 'qa', 'certification', 'production'];
+        $order = Workflow::environmentKeys($workflow);
         $fromPosition = array_search($from, $order, true);
         $toPosition = array_search($to, $order, true);
 
@@ -421,7 +444,7 @@ class WorkspaceController extends Controller
             $code = 'NX-'.str_pad((string) $task->id, 3, '0', STR_PAD_LEFT);
             $fields = $task->notification_fields ?? ['title', 'code', 'status'];
             $legacyIntro = '¡Listo! 🚀 La tarea ya está en Producción.';
-            $environmentLabel = Task::ENVIRONMENTS[$task->environment] ?? $task->environment;
+            $environmentLabel = Workflow::environmentLabel(Workflow::forWorkspace(Spaces::id()), $task->environment);
             $heading = $claimedCompletion ? 'Producción completada' : 'Tarea movida a '.$environmentLabel;
             $intro = trim($task->notification_message ?: ($claimedCompletion ? $legacyIntro : 'La tarea pasó a '.$environmentLabel.'.'));
             if (! $claimedCompletion && $intro === $legacyIntro) {
@@ -450,7 +473,7 @@ class WorkspaceController extends Controller
                 $details['description'] = $task->description;
             }
             if (in_array('status', $fields, true)) {
-                $details['status'] = $environmentLabel.' · '.(Task::STATUSES[$task->status] ?? $task->status);
+                $details['status'] = $environmentLabel.' · '.Workflow::statusLabel(Workflow::forWorkspace(Spaces::id()), $task->status);
             }
             if (in_array('checklist', $fields, true) && count($task->checklist ?? [])) {
                 $details['checklist'] = $task->checklist;
