@@ -9,7 +9,7 @@ Gestor de espacios, tareas, notas y documentación. Angular 21 es la interfaz; L
 - Lectura ampliada, edición opcional, avisos flotantes, tema claro/oscuro y menú adaptable.
 - Administrador, editores y lectores, con acceso limitado a los espacios asignados.
 
-Consulta ACTUALIZAR.md para todas las funciones y reglas. Los ambientes son etiquetas de seguimiento: la aplicación no despliega código ni ejecuta scripts. No incluye sincronización en tiempo real ni recuperación de contraseña por correo.
+Consulta ACTUALIZAR.md para todas las funciones y reglas. Los ambientes son etiquetas de seguimiento: la aplicación no despliega código ni ejecuta scripts. Nexo incluye recuperación de contraseña por correo si SMTP está configurado.
 
 ## Requisitos
 
@@ -47,7 +47,7 @@ directorio-del-dominio/
 
 No subas `.env`, `vendor`, `storage` ni todo el proyecto dentro de `public_html`. El adaptador presupone que `flujo` y `public_html` son carpetas hermanas; ajusta la ruta privada del adaptador si usas otra estructura.
 
-5. Dentro de `flujo`, copia `.env.hostinger.example` como `.env`. Completa `APP_URL` y los valores `DB_*`. Mantén `APP_DEBUG=false`, `APP_ENV=production` y `SESSION_SECURE_COOKIE=true` en producción.
+5. Dentro de `flujo`, copia `.env.hostinger.example` como `.env`. Completa `APP_URL` con el dominio HTTPS y los valores `DB_*`. Mantén `APP_DEBUG=false`, `APP_ENV=production`, `SESSION_DRIVER=database`, `SESSION_ENCRYPT=true` y `SESSION_SECURE_COOKIE=true` en producción. Configura SMTP y los datos comerciales `NEXO_*` reales antes de habilitar recuperación de cuenta o compartir las páginas públicas.
 6. En SSH, entra a `flujo` y ejecuta con la versión correcta de PHP:
 
 ```sh
@@ -63,6 +63,8 @@ El comando `flujo:usuario` pide nombre, correo y contraseña de al menos 12 cara
 
 7. Asegura que PHP pueda escribir en `storage/` y `bootstrap/cache/`. Usa los permisos que recomienda tu hosting, sin habilitar escritura pública general.
 8. Activa HTTPS y abre `https://tudominio.com/app/`. Prueba crear una tarea, adjuntar un documento, descargarlo y cerrar sesión.
+
+La raíz `https://tudominio.com/` presenta la página informativa; el acceso privado sigue en `/app/`. Tras una actualización, prueba también `/password/forgot` y confirma que el enlace del correo vuelve al dominio HTTPS correcto.
 
 No necesitas `npm`, un servicio Node, Redis ni un trabajador de colas en Hostinger. Tampoco necesitas `storage:link`: los adjuntos se descargan mediante la API autenticada.
 

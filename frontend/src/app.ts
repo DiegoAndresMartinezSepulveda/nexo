@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
-import { assetUrl, isNativeMobile } from './mobile';
+import { assetUrl, isNativeMobile, MOBILE_API_ORIGIN } from './mobile';
 import {Block, Media, NoteEditorComponent, ModalComponent} from './editor';
 import {Diagram,DiagramComponent,emptyDiagram} from './diagram';
 import {ReadingComponent} from './reading';
@@ -12,6 +12,7 @@ import {ButtonHintDirective} from './button-hint';
 
 type Catalog={id:number;name:string;code?:string;client_id?:number|null;description?:string};
 type Activity={id:number;action:string;subject_type:string;subject_id:number;title:string;created_at:string};
+type AuditLog={id:number;workspace_id:number|null;workspace_name:string|null;actor_id:number|null;actor_name:string|null;actor_email:string|null;event:string;action:string;subject_type:string|null;subject_id:number|null;subject_name:string|null;metadata:Record<string,unknown>|string|null;ip_address:string|null;user_agent:string|null;created_at:string};
 type Share={user_id:number;name?:string;email?:string;permission:'view'|'edit'};
 type Member={id:number;name:string;email:string};
 type Entry={diagram?:Diagram;id:number;kind:'note'|'library'|'diagram';title:string;blocks:Block[];search_text:string;client_id:number|null;project_id:number|null;category:string;tags:string[];color:string;pinned:boolean;archived:boolean;media:Media[];updated_at:string;visibility?:'private'|'workspace'|'shared';shares?:Share[];can_edit?:boolean};
@@ -42,14 +43,20 @@ export class AppComponent implements OnInit {
   selected = signal<Task | null>(null);
   files: File[] = [];
   email = ''; password = ''; query = ''; environment = '';taskTag='';
+  passwordRecoveryUrl=isNativeMobile?`${MOBILE_API_ORIGIN}/password/forgot`:'/password/forgot';
   loginCaptcha=signal<{id:string;question:string}|null>(null);loginCaptchaAnswer='';
   twoFactorRequired=signal(false);twoFactorCode='';
   draft: Draft = this.emptyDraft();
   statusLabels: Record<string, string> = {pending: 'Pendiente', development: 'En desarrollo', review: 'En revisión', done: 'Completada'};
   environmentLabels: Record<string, string> = {backlog: 'Backlog', local: 'Local', development: 'Desarrollo', qa:'QA', certification: 'Certificación', production: 'Producción'};
   priorityLabels: Record<string, string> = {low: 'Baja', normal: 'Normal', high: 'Alta', urgent: 'Urgente'};
+  dashboardStatOptions=[{key:'pending',label:'Tareas pendientes',icon:'columns',tone:'blue',description:'Pendientes fuera del Backlog'},{key:'development',label:'En desarrollo',icon:'code',tone:'violet',description:'Trabajo en curso'},{key:'review',label:'En revisión',icon:'history',tone:'amber',description:'Esperando validación'},{key:'done',label:'Completadas',icon:'check',tone:'teal',description:'Entregas realizadas'},{key:'backlog',label:'Backlog',icon:'folder',tone:'slate',description:'Pendientes por priorizar'}];
   statusOrder=signal<string[]>(Object.keys(this.statusLabels));
   statusSettings=signal<Record<string,StatusSetting>>({});
+  dashboardStatVisibility=signal<Record<string,boolean>>({});
+  dashboardEnvironment='';
+  dashboardDefaultEnvironment='';
+  get dashboardEnvironments(){return Object.entries(this.environmentLabels).filter(([key])=>key!=='qa'||this.tasks().some(task=>task.environment===key)||this.dashboardEnvironment===key);}
   get statuses(){return this.statusOrder().filter(key=>key in this.statusLabels).map(key=>[key,this.statusLabels[key]] as [string,string]);}
   get environments(){return Object.entries(this.environmentLabels).filter(e=>e[0]!=='qa'||this.tasks().some(t=>t.environment==='qa')||this.draft.environment==='qa');}
   priorities = Object.entries(this.priorityLabels);
@@ -62,9 +69,10 @@ export class AppComponent implements OnInit {
   clients=signal<Catalog[]>([]); projects=signal<Catalog[]>([]);
   notes=signal<Entry[]>([]); library=signal<Entry[]>([]); history=signal<Activity[]>([]); taskHistory=signal<Activity[]>([]);
   historyPage=1; historyLast=1;
+  auditLogs=signal<AuditLog[]>([]);auditPage=1;auditLast=1;auditTotal=0;auditQuery='';auditEvent='';auditActor='';auditWorkspace='';auditFrom='';auditTo='';auditEvents=[['task.created','Tarea creada'],['task.updated','Tarea actualizada'],['task.deleted','Tarea eliminada'],['task.moved','Tarea movida'],['task.status.changed','Estado de tarea cambiado'],['task.checklist.updated','Lista actualizada'],['task.attachment.deleted','Adjunto eliminado'],['task.notification.sent','Aviso enviado'],['note.created','Nota creada'],['note.updated','Nota actualizada'],['note.deleted','Nota eliminada'],['library.created','Recurso agregado'],['library.updated','Recurso actualizado'],['library.deleted','Recurso eliminado'],['diagram.created','Diagrama creado'],['diagram.updated','Diagrama actualizado'],['diagram.deleted','Diagrama eliminado'],['auth.login','Inicio de sesión'],['auth.logout','Cierre de sesión'],['security.password.changed','Contraseña actualizada'],['security.password.reset','Contraseña recuperada'],['security.two_factor.enabled','Doble factor activado'],['security.two_factor.disabled','Doble factor desactivado'],['account.profile_photo.updated','Foto actualizada'],['account.profile_photo.deleted','Foto quitada'],['admin.user.created','Usuario agregado'],['admin.user.updated','Usuario actualizado'],['admin.workspace.created','Espacio creado'],['admin.workspace.updated','Espacio actualizado'],['admin.notification_contact.created','Destinatario agregado'],['admin.notification_contact.updated','Destinatario actualizado'],['admin.notification_contact.deleted','Destinatario quitado']];
   taskBlocks:Block[]=[];taskDescriptionBlocks:Block[]=[]; entryBlocks:Block[]=[];
   uploadBusy=signal(false); attachmentBusy=signal(false);
-  theme=signal(localStorage.getItem('flujo-theme')||'light'); collapsed=signal(localStorage.getItem('flujo-sidebar')==='collapsed'); mobileOpen=signal(false);
+  theme=signal(localStorage.getItem('flujo-theme')||'light');palette=signal(localStorage.getItem('nexo-theme-palette')||'nexo');themeOptions=[{key:'nexo',label:'Nexo',description:'Azul índigo, el estilo original'},{key:'ocean',label:'Océano',description:'Azules profundos y frescos'},{key:'forest',label:'Bosque',description:'Verdes tranquilos'},{key:'violet',label:'Violeta',description:'Morados suaves'},{key:'sunset',label:'Atardecer',description:'Tonos cálidos y claros'}];collapsed=signal(localStorage.getItem('flujo-sidebar')==='collapsed'); mobileOpen=signal(false);
   groupBy=signal(localStorage.getItem('flujo-group')||'environment'); autoEnvironment=signal(localStorage.getItem('flujo-auto-environment')==='yes');
   clientFilter='';projectFilter='';entryQuery='';entryClient='';entryProject='';entryCategory='';entryTag='';entryType='';archived=false;
   activeKind:'note'|'library'|'diagram'='note'; selectedEntry=signal<Entry|null>(null); entryMedia=signal<Media[]>([]);
@@ -75,18 +83,31 @@ export class AppComponent implements OnInit {
   previewMedia=signal<Media|null>(null);
   nav=[['dashboard','grid','Inicio'],['board','columns','Tablero'],['notes','note','Notas importantes'],['library','folder','Biblioteca'],['diagrams','layers','Diagramas']];
   management=[['clients','users','Clientes'],['projects','layers','Proyectos'],['history','history','Historial']];
-  sidebarPreferences=[{key:'dashboard',label:'Inicio',icon:'grid',description:'Resumen del espacio'},{key:'board',label:'Tablero',icon:'columns',description:'Tareas y estados'},{key:'notes',label:'Notas importantes',icon:'note',description:'Ideas y listas personales'},{key:'library',label:'Biblioteca',icon:'folder',description:'Archivos y referencias'},{key:'diagrams',label:'Diagramas',icon:'layers',description:'Pizarras y diagramas'},{key:'clients',label:'Clientes',icon:'users',description:'Directorio de clientes'},{key:'projects',label:'Proyectos',icon:'layers',description:'Proyectos por cliente'},{key:'history',label:'Historial',icon:'history',description:'Actividad reciente'},{key:'spaces',label:'Espacios',icon:'layers',description:'Administrar espacios',adminOnly:true},{key:'users',label:'Usuarios',icon:'users',description:'Personas y permisos',adminOnly:true}];
+  sidebarPreferences=[{key:'dashboard',label:'Inicio',icon:'grid',description:'Resumen del espacio'},{key:'board',label:'Tablero',icon:'columns',description:'Tareas y estados'},{key:'notes',label:'Notas importantes',icon:'note',description:'Ideas y listas personales'},{key:'library',label:'Biblioteca',icon:'folder',description:'Archivos y referencias'},{key:'diagrams',label:'Diagramas',icon:'layers',description:'Pizarras y diagramas'},{key:'clients',label:'Clientes',icon:'users',description:'Directorio de clientes'},{key:'projects',label:'Proyectos',icon:'layers',description:'Proyectos por cliente'},{key:'history',label:'Historial',icon:'history',description:'Actividad reciente'},{key:'audit',label:'Auditoría',icon:'history',description:'Registro de cambios y accesos',adminOnly:true},{key:'spaces',label:'Espacios',icon:'layers',description:'Administrar espacios',adminOnly:true},{key:'users',label:'Usuarios',icon:'users',description:'Personas y permisos',adminOnly:true}];
   sidebarVisibility=signal<Record<string,boolean>>({});
-  pageNames:Record<string,string>={dashboard:'Inicio',board:'Tablero',notes:'Notas importantes',library:'Biblioteca',clients:'Clientes',projects:'Proyectos',history:'Historial',diagrams:'Diagramas',users:'Usuarios',spaces:'Espacios',reading:'Lectura',taskreading:'Lectura de tarea',settings:'Preferencias',detail:'Requerimiento',entry:'Editor'};
+  pageNames:Record<string,string>={dashboard:'Inicio',board:'Tablero',notes:'Notas importantes',library:'Biblioteca',clients:'Clientes',projects:'Proyectos',history:'Historial',audit:'Auditoría',diagrams:'Diagramas',users:'Usuarios',spaces:'Espacios',reading:'Lectura',taskreading:'Lectura de tarea',settings:'Preferencias',detail:'Requerimiento',entry:'Editor'};
   get currentTitle(){return this.pageNames[this.view()]||'Mi espacio';}
   private sidebarPreferenceStorageKey(userId:number){return `nexo-sidebar-menu:${userId}`;}
+  private themeModeStorageKey(userId:number){return `nexo-theme-mode:${userId}`;}
+  private themePaletteStorageKey(userId:number){return `nexo-theme-palette:${userId}`;}
+  loadAppearancePreferences(userId:number){const mode=localStorage.getItem(this.themeModeStorageKey(userId))||localStorage.getItem('flujo-theme')||'light';this.theme.set(mode==='dark'?'dark':'light');const saved=localStorage.getItem(this.themePaletteStorageKey(userId))||localStorage.getItem('nexo-theme-palette')||'nexo';this.palette.set(this.themeOptions.some(option=>option.key===saved)?saved:'nexo');this.initializeTheme();}
+  setThemePalette(key:string){if(!this.themeOptions.some(option=>option.key===key))return;this.palette.set(key);const userId=this.user()?.id;localStorage.setItem(userId?this.themePaletteStorageKey(userId):'nexo-theme-palette',key);this.initializeTheme();}
   loadSidebarPreferences(userId:number){let stored:Record<string,boolean>={};try{stored=JSON.parse(localStorage.getItem(this.sidebarPreferenceStorageKey(userId))||'{}')||{};}catch{}this.sidebarVisibility.set(Object.fromEntries(this.sidebarPreferences.map(item=>[item.key,stored[item.key]!==false])));}
   sidebarItemVisible(key:string){return this.sidebarVisibility()[key]!==false;}
   setSidebarItemVisible(key:string,visible:boolean){const next={...this.sidebarVisibility(),[key]:visible};this.sidebarVisibility.set(next);const userId=this.user()?.id;if(userId)localStorage.setItem(this.sidebarPreferenceStorageKey(userId),JSON.stringify(next));}
   resetSidebarPreferences(){const defaults=Object.fromEntries(this.sidebarPreferences.map(item=>[item.key,true]));this.sidebarVisibility.set(defaults);const userId=this.user()?.id;if(userId)localStorage.setItem(this.sidebarPreferenceStorageKey(userId),JSON.stringify(defaults));}
   visibleNav(){return this.nav.filter(([key])=>this.sidebarItemVisible(key));}
   visibleManagement(){return this.management.filter(([key])=>this.sidebarItemVisible(key));}
-  visibleAdminItems(){return this.isAdmin()?[['spaces','layers','Espacios'],['users','users','Usuarios']].filter(([key])=>this.sidebarItemVisible(key)):[];}
+  visibleAdminItems(){return this.isAdmin()?[['audit','history','Auditoría'],['spaces','layers','Espacios'],['users','users','Usuarios']].filter(([key])=>this.sidebarItemVisible(key)):[];}
+  private dashboardStatPreferenceStorageKey(userId:number){return `nexo-dashboard-stats:${userId}`;}
+  loadDashboardStatPreferences(userId:number){let stored:Record<string,boolean>={};try{stored=JSON.parse(localStorage.getItem(this.dashboardStatPreferenceStorageKey(userId))||'{}')||{};}catch{}this.dashboardStatVisibility.set(Object.fromEntries(this.dashboardStatOptions.map(option=>[option.key,stored[option.key]!==false])));let environment='';try{environment=localStorage.getItem(`nexo-dashboard-environment:${userId}`)||'';}catch{}this.dashboardDefaultEnvironment=Object.hasOwn(this.environmentLabels,environment)?environment:'';this.dashboardEnvironment=this.dashboardDefaultEnvironment;}
+  setDashboardDefaultEnvironment(environment:string){this.dashboardDefaultEnvironment=Object.hasOwn(this.environmentLabels,environment)?environment:'';this.dashboardEnvironment=this.dashboardDefaultEnvironment;const userId=this.user()?.id;if(userId)localStorage.setItem(`nexo-dashboard-environment:${userId}`,this.dashboardDefaultEnvironment);}
+  dashboardStatVisible(key:string){return this.dashboardStatVisibility()[key]!==false;}
+  visibleDashboardStats(){return this.dashboardStatOptions.filter(option=>this.dashboardStatVisible(option.key));}
+  setDashboardStatVisible(key:string,visible:boolean){this.dashboardStatVisibility.update(settings=>({...settings,[key]:visible}));this.saveDashboardStatPreferences();}
+  resetDashboardStatPreferences(){this.dashboardStatVisibility.set(Object.fromEntries(this.dashboardStatOptions.map(option=>[option.key,true])));this.saveDashboardStatPreferences();}
+  private saveDashboardStatPreferences(){const userId=this.user()?.id;if(userId)localStorage.setItem(this.dashboardStatPreferenceStorageKey(userId),JSON.stringify(this.dashboardStatVisibility()));}
+  dashboardStatCount(key:string){const tasks=this.tasks().filter(task=>!this.dashboardEnvironment||task.environment===this.dashboardEnvironment);if(key==='backlog')return tasks.filter(task=>task.environment==='backlog').length;if(key==='pending')return tasks.filter(task=>task.status==='pending'&&task.environment!=='backlog').length;return tasks.filter(task=>task.status===key).length;}
   private statusPreferenceStorageKey(userId:number,spaceId:number){return `nexo-status-board:${userId}:${spaceId}`;}
   loadStatusPreferences(userId:number,spaceId:number){let stored:{order?:string[];settings?:Record<string,Partial<StatusSetting>>}={};try{stored=JSON.parse(localStorage.getItem(this.statusPreferenceStorageKey(userId,spaceId))||'{}')||{};}catch{}const known=Object.keys(this.statusLabels),order=[...(stored.order||[]).filter(key=>known.includes(key))];for(const key of known)if(!order.includes(key))order.push(key);this.statusOrder.set(order);this.statusSettings.set(Object.fromEntries(known.map(key=>[key,{visible:stored.settings?.[key]?.visible!==false,active:stored.settings?.[key]?.active!==false}])));}
   private saveStatusPreferences(){const userId=this.user()?.id,spaceId=this.spaceId();if(!userId||!spaceId)return;localStorage.setItem(this.statusPreferenceStorageKey(userId,spaceId),JSON.stringify({order:this.statusOrder(),settings:this.statusSettings()}));}
@@ -118,8 +139,9 @@ export class AppComponent implements OnInit {
   excerpt(e:Entry){return (e.search_text||'').slice(0,180);}
   entryCategories(){return [...new Set(this.library().map(e=>e.category).filter(Boolean))];}
   entryTags(){return [...new Set(this.library().flatMap(e=>e.tags))];}
-  initializeTheme(){document.documentElement.dataset['theme']=this.theme();}
-  toggleTheme(){this.theme.set(this.theme()==='light'?'dark':'light');localStorage.setItem('flujo-theme',this.theme());this.initializeTheme();}
+  themeColor(key:string){return ({nexo:'#5266eb',ocean:'#1688b6',forest:'#27845b',violet:'#7956c9',sunset:'#c46b3d'} as Record<string,string>)[key]||'#5266eb';}
+  initializeTheme(){document.documentElement.dataset['theme']=this.theme();document.documentElement.dataset['palette']=this.palette();}
+  toggleTheme(){this.theme.set(this.theme()==='light'?'dark':'light');const userId=this.user()?.id;localStorage.setItem(userId?this.themeModeStorageKey(userId):'flujo-theme',this.theme());this.initializeTheme();}
   toggleSidebar(){this.collapsed.update(v=>!v);localStorage.setItem('flujo-sidebar',this.collapsed()?'collapsed':'expanded');}
   setGroup(value:string){this.groupBy.set(value);localStorage.setItem('flujo-group',value);}
   setAuto(value:boolean){this.autoEnvironment.set(value);localStorage.setItem('flujo-auto-environment',value?'yes':'no');}
@@ -129,10 +151,16 @@ export class AppComponent implements OnInit {
   async loadCatalog(){const generation=this.generation;try{const c=await firstValueFrom(this.http.get<{clients:Catalog[];projects:Catalog[]}>('/api/catalog'));if(generation!==this.generation)return;this.clients.set(c.clients);this.projects.set(c.projects);}catch(e){this.showError(e);}}
   async loadEntries(kind:'note'|'library'|'diagram'){const generation=this.generation;try{const entries=await firstValueFrom(this.http.get<Entry[]>('/api/entries',{params:{kind,archived:this.archived?'1':'0'}}));if(generation!==this.generation)return;(kind==='note'?this.notes:kind==='diagram'?this.diagrams:this.library).set(entries);}catch(e){this.showError(e);}}
   async loadHistory(taskId?:number,page=1){const generation=this.generation;try{const data=await firstValueFrom(this.http.get<{data:Activity[];last_page:number}>('/api/history',{params:taskId?{task_id:taskId}:{page}}));if(generation!==this.generation)return;if(taskId)this.taskHistory.set(data.data);else{this.history.set(data.data);this.historyPage=page;this.historyLast=data.last_page;}}catch(e){this.showError(e);}}
+  private auditParams():Record<string,string>{return Object.fromEntries(Object.entries({q:this.auditQuery,event:this.auditEvent,actor_id:this.auditActor,workspace_id:this.auditWorkspace,from:this.auditFrom,to:this.auditTo}).filter(([,value])=>!!value));}
+  async loadAuditLogs(page=1){if(!this.isAdmin())return;try{const result=await firstValueFrom(this.http.get<{data:AuditLog[];current_page:number;last_page:number;total:number}>('/api/audit-logs',{params:{...this.auditParams(),page:String(page)}}));this.auditLogs.set(result.data);this.auditPage=result.current_page;this.auditLast=result.last_page;this.auditTotal=result.total;}catch(e){this.showError(e);}}
+  async exportAuditLogs(){if(!this.isAdmin()||this.busy())return;this.busy.set(true);try{const blob=await firstValueFrom(this.http.get('/api/audit-logs/export',{params:this.auditParams(),responseType:'blob'}));const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download='nexo-auditoria.csv';link.click();URL.revokeObjectURL(url);}catch(e){this.showError(e);}finally{this.busy.set(false);}}
+  auditEventLabel(event:string){return this.auditEvents.find(option=>option[0]===event)?.[1]||event;}
+  auditMetadataFields(log:AuditLog){let metadata=log.metadata;if(typeof metadata==='string'){try{metadata=JSON.parse(metadata);}catch{return '';}}const fields=(metadata as Record<string,unknown>|null)?.['fields'];return Array.isArray(fields)?fields.join(', '):'';}
+  auditMetadataRole(log:AuditLog){let metadata=log.metadata;if(typeof metadata==='string'){try{metadata=JSON.parse(metadata);}catch{return '';}}const role=(metadata as Record<string,unknown>|null)?.['role'];return typeof role==='string'?role:'';}
   async navigate(page:string){
     if(this.busy()||this.pageLoading()||this.uploadBusy()||this.attachmentBusy())return;
     this.mobileOpen.set(false);this.error.set('');this.notice.set('');this.view.set(page);this.pageLoading.set(true);window.scrollTo(0,0);
-    try{if(page==='dashboard')await this.loadWorkspace();if(page==='board')await this.loadTasks();if(['notes','library','diagrams'].includes(page)){this.archived=false;await this.loadEntries(this.kindForView());}if(page==='history')await this.loadHistory();if(page==='users')await this.loadUsers();if(page==='settings')await this.loadNotificationContacts();}finally{this.pageLoading.set(false);}
+    try{if(page==='dashboard')await this.loadWorkspace();if(page==='board')await this.loadTasks();if(['notes','library','diagrams'].includes(page)){this.archived=false;await this.loadEntries(this.kindForView());}if(page==='history')await this.loadHistory();if(page==='audit'&&this.isAdmin()){await Promise.all([this.loadAuditLogs(),this.loadUsers()]);}if(page==='users')await this.loadUsers();if(page==='settings')await this.loadNotificationContacts();}finally{this.pageLoading.set(false);}
   }
   kindForView():'note'|'library'|'diagram'{return this.view()==='notes'?'note':this.view()==='diagrams'?'diagram':'library';}
   entryList(){return this.activeKind==='note'?'notes':this.activeKind==='diagram'?'diagrams':'library';}
@@ -178,7 +206,7 @@ export class AppComponent implements OnInit {
   notificationContacts=signal<NotificationContact[]>([]);contactModal=signal(false);editingContact:number|null=null;contactDraft={name:'',email:'',channel:'email' as 'email'|'message',is_default:true};
   userDraft={name:'',email:'',password:'',role:'editor',workspace_ids:[] as number[]};
   editingUserPhotoUrl:string|null=null;userPhotoFile:File|null=null;userPhotoPreview=signal<string|null>(null);
-  ownPhotoFile:File|null=null;ownPhotoPreview=signal<string|null>(null);
+  ownPhotoFile:File|null=null;ownPhotoPreview=signal<string|null>(null);savingOwnPhoto=signal(false);
   spaceModal=signal(false);editingSpace:number|null=null;spaceDraft={name:'',color:'blue'};
   get spaceName(){return this.spaces().find(s=>s.id===this.spaceId())?.name||'Mi espacio';}
   get activeSpaceAccent(){const color=this.spaces().find(s=>s.id===this.spaceId())?.color||'blue';const palette:Record<string,{light:string;dark:string}>={blue:{light:'#5266eb',dark:'#93a0ff'},green:{light:'#16794f',dark:'#6bd6a4'},yellow:{light:'#9a6600',dark:'#ffd164'},red:{light:'#c34350',dark:'#ff8b97'},purple:{light:'#7551c8',dark:'#b69bff'},gray:{light:'#566579',dark:'#b9c5d8'}};return palette[color]?.[this.theme()==='dark'?'dark':'light']||palette.blue[this.theme()==='dark'?'dark':'light'];}
@@ -206,7 +234,7 @@ export class AppComponent implements OnInit {
   toggleUserSpace(id:number,checked:boolean){this.userDraft.workspace_ids=checked?[...this.userDraft.workspace_ids,id]:this.userDraft.workspace_ids.filter(x=>x!==id);}
   async saveUser(){if(this.busy())return;this.busy.set(true);this.error.set('');try{const payload={...this.userDraft,password:this.userDraft.password||null};const saved=await firstValueFrom(this.editingUser?this.http.put<User>('/api/users/'+this.editingUser,payload):this.http.post<User>('/api/users',payload));this.editingUser=saved.id;if(this.userPhotoFile){const data=new FormData();data.append('photo',this.userPhotoFile);const profile=await firstValueFrom(this.http.post<User>('/api/users/'+saved.id+'/photo',data));this.editingUserPhotoUrl=profile.profile_photo_url||null;}this.closeUserModal();await this.loadUsers();this.notice.set('Usuario guardado. Solo podrá acceder a los espacios que le asignaste.');}catch(e){this.showError(e);}finally{this.busy.set(false);}}
   async removeEditedUserPhoto(){if(!this.editingUser||!this.editingUserPhotoUrl||this.busy()||!confirm('¿Quitar la foto de perfil de esta persona?'))return;this.busy.set(true);try{await firstValueFrom(this.http.delete('/api/users/'+this.editingUser+'/photo'));this.editingUserPhotoUrl=null;await this.loadUsers();this.notice.set('Foto de perfil quitada.');}catch(e){this.showError(e);}finally{this.busy.set(false);}}
-  async saveOwnProfilePhoto(){const person=this.user(),file=this.ownPhotoFile;if(!person||!file||this.busy())return;this.busy.set(true);try{const data=new FormData();data.append('photo',file);const updated=await firstValueFrom(this.http.post<User>('/api/users/'+person.id+'/photo',data));this.user.set(updated);this.clearOwnPhotoSelection();this.notice.set('Foto de perfil actualizada.');}catch(e){this.showError(e);}finally{this.busy.set(false);}}
+  async saveOwnProfilePhoto(){const person=this.user(),file=this.ownPhotoFile;if(!person||!file||this.busy())return;this.busy.set(true);this.savingOwnPhoto.set(true);try{const data=new FormData();data.append('photo',file);const updated=await firstValueFrom(this.http.post<User>('/api/users/'+person.id+'/photo',data));this.user.set(updated);this.clearOwnPhotoSelection();this.notice.set('Foto de perfil actualizada.');}catch(e){this.showError(e);}finally{this.savingOwnPhoto.set(false);this.busy.set(false);}}
   async removeOwnProfilePhoto(){const person=this.user();if(!person?.profile_photo_url||this.busy()||!confirm('¿Quitar tu foto de perfil?'))return;this.busy.set(true);try{await firstValueFrom(this.http.delete('/api/users/'+person.id+'/photo'));this.user.set({...person,profile_photo_url:null});this.notice.set('Foto de perfil quitada.');}catch(e){this.showError(e);}finally{this.busy.set(false);}}
   editNotificationContact(c?:NotificationContact){this.editingContact=c?.id||null;this.contactDraft={name:c?.name||'',email:c?.email||'',channel:c?.channel||'email',is_default:c?.is_default??true};this.contactModal.set(true);}
   async saveNotificationContact(){if(this.busy())return;this.busy.set(true);try{const payload={...this.contactDraft};await firstValueFrom(this.editingContact?this.http.put('/api/notification-contacts/'+this.editingContact,payload):this.http.post('/api/notification-contacts',payload));this.contactModal.set(false);await this.loadNotificationContacts();this.notice.set('Destinatario guardado para este espacio.');}catch(e){this.showError(e);}finally{this.busy.set(false);}}
@@ -222,8 +250,9 @@ export class AppComponent implements OnInit {
     try {
       const result = await firstValueFrom(this.http.get<{user: User | null}>(isNativeMobile ? '/api/mobile/session' : '/api/session'));
       this.user.set(result.user);
+      if (result.user) this.loadAppearancePreferences(result.user.id);
       if (result.user) {
-        this.loadSidebarPreferences(result.user.id);
+        this.loadSidebarPreferences(result.user.id);this.loadDashboardStatPreferences(result.user.id);
         if (isNativeMobile) await this.refreshMobileAssetToken();
         await this.initializeSpaces();
       }
@@ -270,7 +299,7 @@ export class AppComponent implements OnInit {
       const mobileToken = (result as {token?: string}).token;
       if (isNativeMobile && mobileToken) localStorage.setItem('nexo-mobile-token', mobileToken);
       if (isNativeMobile) await this.refreshMobileAssetToken();
-      this.user.set(result.user); this.loadSidebarPreferences(result.user.id); this.password = ''; this.loginCaptcha.set(null); this.loginCaptchaAnswer='';this.twoFactorRequired.set(false);this.twoFactorCode=''; this.notice.set(''); await this.initializeSpaces();
+      this.user.set(result.user); this.loadAppearancePreferences(result.user.id);this.loadSidebarPreferences(result.user.id);this.loadDashboardStatPreferences(result.user.id); this.password = ''; this.loginCaptcha.set(null); this.loginCaptchaAnswer='';this.twoFactorRequired.set(false);this.twoFactorCode=''; this.notice.set(''); await this.initializeSpaces();
     } catch (e) {
       if(e instanceof HttpErrorResponse){
         const response=e.error as {captcha_required?:boolean;captcha_id?:string;captcha_question?:string;two_factor_required?:boolean;blocked?:boolean}|null;
@@ -289,6 +318,8 @@ export class AppComponent implements OnInit {
     catch (e) { this.showError(e); } finally { this.busy.set(false); }
   }
   twoFactorSetup=signal<{secret:string;otpauth_uri:string}|null>(null);twoFactorRecoveryCodes=signal<string[]|null>(null);twoFactorSetupPassword='';twoFactorSetupCode='';twoFactorDisableOpen=signal(false);twoFactorDisablePassword='';twoFactorDisableCode='';
+  currentPassword='';newPassword='';confirmNewPassword='';
+  async changeOwnPassword(){if(this.busy())return;if(this.newPassword!==this.confirmNewPassword){this.error.set('La nueva contraseña y su confirmación no coinciden.');return;}this.busy.set(true);this.error.set('');try{await firstValueFrom(this.http.put('/api/account/password',{current_password:this.currentPassword,password:this.newPassword,password_confirmation:this.confirmNewPassword}));this.currentPassword='';this.newPassword='';this.confirmNewPassword='';this.notice.set('Contraseña actualizada. Se cerraron tus otras sesiones.');}catch(e){this.showError(e);}finally{this.busy.set(false);}}
   async beginTwoFactorSetup(){if(this.busy())return;this.busy.set(true);this.error.set('');try{const setup=await firstValueFrom(this.http.post<{secret:string;otpauth_uri:string}>('/api/two-factor/setup',{password:this.twoFactorSetupPassword}));this.twoFactorSetup.set(setup);this.twoFactorSetupPassword='';this.twoFactorSetupCode='';}catch(e){this.showError(e);}finally{this.busy.set(false);}}
   async confirmTwoFactorSetup(){if(this.busy()||!this.twoFactorSetupCode.trim())return;this.busy.set(true);this.error.set('');try{const result=await firstValueFrom(this.http.post<{enabled:boolean;recovery_codes:string[]}>('/api/two-factor/confirm',{code:this.twoFactorSetupCode}));const person=this.user();if(person)this.user.set({...person,two_factor_enabled:result.enabled});this.twoFactorSetup.set(null);this.twoFactorSetupCode='';this.twoFactorRecoveryCodes.set(result.recovery_codes);this.notice.set('Verificación en dos pasos activada. Guarda tus códigos de recuperación.');}catch(e){this.showError(e);}finally{this.busy.set(false);}}
   async disableTwoFactor(){if(this.busy()||!this.twoFactorDisablePassword||!this.twoFactorDisableCode.trim())return;this.busy.set(true);this.error.set('');try{await firstValueFrom(this.http.post('/api/two-factor/disable',{password:this.twoFactorDisablePassword,code:this.twoFactorDisableCode}));const person=this.user();if(person)this.user.set({...person,two_factor_enabled:false});this.twoFactorDisablePassword='';this.twoFactorDisableCode='';this.twoFactorDisableOpen.set(false);this.notice.set('Verificación en dos pasos desactivada.');}catch(e){this.showError(e);}finally{this.busy.set(false);}}

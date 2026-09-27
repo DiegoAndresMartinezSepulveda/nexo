@@ -5,6 +5,8 @@ Espacios de trabajo con Angular 21 y Laravel 12: tareas, notas con formato e im�
 - [Actualizar desde Flujo / usar Git y Hostinger](ACTUALIZAR.md)
 - [Instalación inicial](INSTALACION.md)
 - [Preparar Android y publicar en Play Store](ANDROID_PLAYSTORE.md)
+- [Lanzar un piloto v1 y operarlo con seguridad](GUIA_V1_PILOTO.md)
+- [Evaluación comercial y alcance actual](PRODUCTO_COMERCIAL_NEXO.md)
 
 ## Desarrollo
 

@@ -2,6 +2,8 @@
 
 Importa Nexo.postman_collection.json en Postman Web. La colección no incluye contraseñas, tokens ni datos reales.
 
+La colección complementaria `Nexo-recuperacion.postman_collection.json` prueba recuperación de acceso. Su petición 2 puede enviar un correo real; la petición 3 cambia la clave y revoca sesiones, por lo que conviene usar una cuenta de prueba.
+
 ## Prepararla en Postman Web
 
 1. En Postman Web, selecciona **Import** y carga el archivo JSON.
@@ -18,6 +20,8 @@ En **15 · Usuarios y fotos de perfil**, ejecuta **Subir o reemplazar foto (elig
 ## Probar autenticación Android
 
 En **16 · Sesión móvil y acceso a fotos**, ejecuta **Iniciar sesión móvil**, luego **Consultar sesión móvil** y **Crear token temporal para imágenes**. El token de imagen expira en 15 minutos; después puedes usar **Ver foto como la app Android**.
+
+La carpeta **17 · Auditoría (solo administrador)** prueba el listado, filtros de texto/acción/fechas y la descarga CSV. La auditoría es global a la instalación y no usa X-Workspace-ID.
 
 La API web usa sesión Laravel y cookie CSRF. La colección copia automáticamente XSRF-TOKEN al encabezado X-XSRF-TOKEN. Las peticiones protegidas por espacio envían X-Workspace-ID.
 

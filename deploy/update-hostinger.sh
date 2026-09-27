@@ -13,8 +13,8 @@ if [[ "$(basename "$PROJECT_ROOT")" != "flujo" ]]; then
   echo "Esta instalación usa la carpeta privada flujo. Ajusta el adaptador antes de cambiarla." >&2
   exit 1
 fi
-if [[ ! -f "$PROJECT_ROOT/.env" || ! -f "$PROJECT_ROOT/public/app/index.html" ]]; then
-  echo "Falta .env o la compilación de Angular." >&2
+if [[ ! -f "$PROJECT_ROOT/.env" || ! -f "$PROJECT_ROOT/composer.lock" || ! -f "$PROJECT_ROOT/public/app/index.html" || ! -f "$PROJECT_ROOT/deploy/hostinger-index.php" ]]; then
+  echo "Falta .env, composer.lock, la compilación de Angular o el adaptador de Hostinger." >&2
   exit 1
 fi
 export PATH="$(dirname "$PHP_BIN"):$PATH"
@@ -30,6 +30,11 @@ cd "$PROJECT_ROOT"
 trap 'echo "Actualización interrumpida. Revisa el error y vuelve a ejecutar este script. El sitio sigue en mantenimiento." >&2' ERR
 "$COMPOSER_BIN" install --no-dev --prefer-dist --optimize-autoloader --no-interaction
 "$PHP_BIN" artisan optimize:clear
+if [[ ! -f "$PROJECT_ROOT/vendor/autoload.php" ]]; then
+  echo "Composer terminó sin crear vendor/autoload.php." >&2
+  exit 1
+fi
+"$PHP_BIN" artisan --version
 "$PHP_BIN" artisan migrate --force
 # Only public assets are copied; .env, uploads and database are never overwritten.
 cp -R "$PROJECT_ROOT/public/." "$PUBLIC_ROOT/"

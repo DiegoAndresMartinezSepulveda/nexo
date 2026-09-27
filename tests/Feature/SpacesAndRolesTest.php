@@ -38,8 +38,11 @@ class SpacesAndRolesTest extends TestCase {
   $this->postJson('/api/users',array_replace($data,['email'=>'admin@example.test','role'=>'admin']))->assertUnprocessable();
   $this->actingAs(User::find($id));$this->postJson('/api/entries',$this->note())->assertCreated();
   $this->getJson('/api/users')->assertForbidden();$this->postJson('/api/users',$data)->assertForbidden();$this->postJson('/api/workspaces',['name'=>'No','color'=>'blue'])->assertForbidden();
+  $mobileToken=User::find($id)->createToken('member-phone');
   $this->actingAs($admin);$this->putJson('/api/users/'.$id,array_replace($data,['role'=>'reader','password'=>null]))->assertOk();
-  $this->actingAs(User::find($id));$this->getJson('/api/entries?kind=note')->assertOk()->assertJsonCount(1);$this->postJson('/api/entries',$this->note())->assertForbidden();$this->postJson('/api/logout')->assertNoContent();
+  $this->assertSame(2,(int)User::find($id)->auth_version);$this->assertDatabaseMissing('personal_access_tokens',['id'=>$mobileToken->accessToken->id]);
+  $this->actingAs(User::find($id));
+  $this->getJson('/api/entries?kind=note')->assertOk()->assertJsonCount(1);$this->postJson('/api/entries',$this->note())->assertForbidden();$this->postJson('/api/logout')->assertNoContent();
  }
  public function test_diagrams_validate_edges_and_persist_coordinates():void{
   $this->actingAs(User::factory()->create());
@@ -47,6 +50,7 @@ class SpacesAndRolesTest extends TestCase {
   $payload=array_replace($this->note(),['kind'=>'diagram','diagram'=>$d]);
   $id=$this->postJson('/api/entries',$payload)->assertCreated()->assertJsonPath('diagram.nodes.0.x',40)->json('id');
   $this->getJson('/api/entries?kind=diagram')->assertJsonCount(1);$this->getJson('/api/entries/'.$id)->assertJsonPath('diagram.edges.0.to','n2');
+  $payload['diagram']=$d;$payload['diagram']['nodes'][0]['x']=10000;$payload['diagram']['nodes'][0]['y']=7000;$this->putJson('/api/entries/'.$id,$payload)->assertOk()->assertJsonPath('diagram.nodes.0.x',10000)->assertJsonPath('diagram.nodes.0.y',7000);
   $payload['diagram']['edges'][0]['to']='missing';$this->putJson('/api/entries/'.$id,$payload)->assertUnprocessable();
   $payload['diagram']=$d;$payload['diagram']['nodes'][0]['x']=-1;$this->putJson('/api/entries/'.$id,$payload)->assertUnprocessable();
   $payload['diagram']=$d;$payload['diagram']['nodes'][1]['id']='n1';$this->putJson('/api/entries/'.$id,$payload)->assertUnprocessable();

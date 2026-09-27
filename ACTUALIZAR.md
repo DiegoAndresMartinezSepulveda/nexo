@@ -5,7 +5,7 @@ Nexo conserva la estructura de instalación existente: la carpeta privada sigue 
 ## Qué incluye
 
 - Inicio con tareas recientes y notas.
-- Barra lateral plegable, navegación móvil y tema claro/oscuro persistente.
+- Barra lateral plegable, navegación móvil, modo claro/oscuro y cinco paletas de color guardadas para cada usuario en el dispositivo.
 - Tablero por ambiente o estado; arrastrar tarjetas y mover mediante botón.
 - Espacios separados: Safin, Sodimac y Personal, con selector y administración de espacios.
 - Clientes con código interno editable y proyectos por espacio.
@@ -25,7 +25,7 @@ Nexo conserva la estructura de instalación existente: la carpeta privada sigue 
 - Notas importantes con colores, fijado, archivo y búsqueda.
 - Biblioteca con archivos, imágenes, SQL, categorías, etiquetas, cliente/proyecto y filtros.
 - SQL de referencia en tareas, sin ejecución de consultas.
-- Historial de cambios a partir de esta actualización.
+- Historial de actividad del espacio, más una auditoría solo para administradores con actor, fecha, espacio, IP, cambios de campos, filtros y descarga CSV. Se conservan snapshots del actor aunque luego cambie su cuenta; la auditoría no guarda contraseñas, mensajes, descripciones ni archivos. Empieza a registrar desde que se ejecuta su migración.
 
 ## Estados por ambiente
 
@@ -75,7 +75,7 @@ Abre tu dominio y recarga con Ctrl+F5. Tus credenciales anteriores siguen funcio
 
 ## Opción B: Git / GitHub
 
-El proyecto incluye un repositorio Git local. El remoto todavía debe conectarse a tu cuenta de GitHub. `.env`, `vendor`, los archivos subidos, SQLite y las dependencias Node están excluidos de Git. `public/app` se versiona ya compilado: Hostinger no necesita Node.
+El repositorio ya está conectado a `origin/main`. `.env`, `vendor`, los archivos subidos, SQLite y las dependencias Node están excluidos de Git. `public/app` se versiona ya compilado: Hostinger no necesita Node.
 
 Primera subida desde tu computadora, dentro del proyecto, después de crear un repositorio **privado y vacío** en GitHub:
 
@@ -137,7 +137,9 @@ La configuración visual se recuerda por navegador. No hay sincronización en ti
 - En Diagramas, crea pasos (Proceso, Decisión o Inicio/fin), conecta origen y destino y añade etiquetas Sí/No. Arrastra los pasos en el lienzo o usa Ordenar pasos. Guarda el diagrama con su explicación y referencias. PNG/PDF exporta el diagrama visible; también aparece un enlace de descarga si el navegador no inicia la descarga automáticamente. La pizarra ofrece pantalla completa, cuadrícula, ajuste a rejilla, zoom con `Ctrl/Cmd + rueda` y atajos `+`, `-`, `F`, `Supr`, `Ctrl/Cmd + Z` y `Ctrl/Cmd + Y`.
 - Los PDF de diagramas se ajustan a una página A4, con fondo blanco. Exportar no guarda cambios pendientes: pulsa Guardar diagrama para persistirlos en Nexo.
 
-Las cuentas no incluyen recuperación de contraseña por correo. Un administrador puede reemplazar la contraseña de un colaborador desde Usuarios. Para la cuenta principal, conserva tu acceso SSH.
+En el inicio de sesión puedes pedir un enlace en **¿Olvidaste tu contraseña?**. Configura `APP_URL` con HTTPS y SMTP para que el enlace se genere con el dominio correcto y llegue al correo. El token vence en 60 minutos, se usa una vez y el sistema no confirma si el correo está registrado. Si no llega, revisa Spam y el log privado de Laravel.
+
+Cada persona también puede cambiar su contraseña en **Preferencias → Cambiar mi contraseña**, después de confirmar la actual. Usa una contraseña de al menos 12 caracteres. El cambio revoca los tokens Android y cierra las otras sesiones; se envía un correo de aviso. No compartas el enlace de recuperación ni incluyas contraseñas o tokens en Postman.
 
 ## Avisos por Gmail
 

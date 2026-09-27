@@ -24,6 +24,12 @@ class MobileAuthenticationTest extends TestCase
             'password' => 'UnaClaveSegura123!',
         ])->assertOk()->assertJsonPath('user.id', $user->id);
 
+        $this->assertDatabaseHas('audit_logs', [
+            'event' => 'auth.login',
+            'actor_id' => $user->id,
+            'actor_email' => $user->email,
+        ]);
+
         $token = $response->json('token');
         $this->assertIsString($token);
         $this->assertNotEmpty($token);

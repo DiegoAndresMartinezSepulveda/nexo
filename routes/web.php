@@ -3,25 +3,33 @@
 use App\Http\Controllers\AdministrationController;
 use App\Http\Controllers\ContentController as Content;
 use App\Http\Controllers\MobileAuthController;
+use App\Http\Controllers\AccountSecurityController;
+use App\Http\Controllers\AuditLogController;
+use App\Http\Controllers\PasswordRecoveryController;
 use App\Http\Controllers\TwoFactorController;
 use App\Http\Controllers\WorkspaceController as Workspace;
 use App\Http\Middleware\MobileAssetToken;
 use App\Http\Middleware\WorkspaceAccess;
+use App\Http\Middleware\EnsureCurrentAuthVersion;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 // Stateful JSON API: web middleware provides sessions and CSRF protection.
 Route::prefix('api')->group(function () {
-    Route::get('/session', fn (Request $r) => response()->json(['user' => $r->user()?->profilePayload()]));
+    Route::get('/session', function (Request $r) {
+        return response()->json(['user' => $r->user()?->profilePayload()])->header('Cache-Control', 'no-store, private');
+    })->middleware(EnsureCurrentAuthVersion::class);
     Route::post('/login', [Workspace::class, 'login'])->middleware('throttle:5,1')->name('login');
     Route::post('/mobile/login', [MobileAuthController::class, 'login'])->middleware('throttle:5,1');
     // Resolve short-lived native asset links before Sanctum authenticates the
     // request; normal API calls continue using their bearer header/session.
     Route::middleware(MobileAssetToken::class)->group(function () {
     Route::middleware('auth:sanctum')->group(function () {
+        Route::middleware(EnsureCurrentAuthVersion::class)->group(function () {
         Route::get('/mobile/session', [MobileAuthController::class, 'session']);
         Route::get('/mobile/asset-token', [MobileAuthController::class, 'assetToken']);
         Route::post('/logout', [Workspace::class, 'logout']);
+        Route::put('/account/password', [AccountSecurityController::class, 'updatePassword'])->middleware('throttle:5,1');
         Route::post('/two-factor/setup', [TwoFactorController::class, 'setup'])->middleware('throttle:5,1');
         Route::post('/two-factor/confirm', [TwoFactorController::class, 'confirm'])->middleware('throttle:10,1');
         Route::post('/two-factor/disable', [TwoFactorController::class, 'disable'])->middleware('throttle:5,1');
@@ -34,6 +42,8 @@ Route::prefix('api')->group(function () {
         Route::get('/users/{user}/photo', [AdministrationController::class, 'profilePhoto']);
         Route::post('/users/{user}/photo', [AdministrationController::class, 'saveProfilePhoto'])->middleware('throttle:30,1');
         Route::delete('/users/{user}/photo', [AdministrationController::class, 'deleteProfilePhoto']);
+        Route::get('/audit-logs/export', [AuditLogController::class, 'export']);
+        Route::get('/audit-logs', [AuditLogController::class, 'index']);
         Route::middleware(WorkspaceAccess::class)->group(function () {
             Route::get('/catalog', [Content::class, 'catalog']);
             Route::post('/catalog/{kind}', [Content::class, 'saveCatalog']);
@@ -64,8 +74,16 @@ Route::prefix('api')->group(function () {
             Route::get('/attachments/{attachment}', [Workspace::class, 'download']);
             Route::delete('/attachments/{attachment}', [Workspace::class, 'deleteAttachment']);
         });
+        });
     });
     });
 });
-Route::get('/', fn () => redirect('/app/'));
+Route::get('/', fn () => response()->view('landing'))->name('home');
+Route::get('/privacidad', fn () => response()->view('legal.privacy'))->name('privacy');
+Route::get('/terminos', fn () => response()->view('legal.terms'))->name('terms');
+Route::get('/soporte', fn () => response()->view('legal.support'))->name('support');
+Route::get('/password/forgot', [PasswordRecoveryController::class, 'forgotForm'])->name('password.request');
+Route::post('/password/forgot', [PasswordRecoveryController::class, 'sendResetLink'])->middleware('throttle:3,1')->name('password.email');
+Route::get('/reset-password/{token}', [PasswordRecoveryController::class, 'resetForm'])->name('password.reset');
+Route::post('/reset-password', [PasswordRecoveryController::class, 'resetPassword'])->middleware('throttle:5,1')->name('password.update');
 Route::get('/app/{path?}', fn () => response()->file(public_path('app/index.html')))->where('path', '.*');

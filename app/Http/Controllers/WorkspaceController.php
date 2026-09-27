@@ -8,6 +8,7 @@ use App\Models\Task;
 use App\Models\User;
 use App\Support\Spaces;
 use App\Support\LoginProtection;
+use App\Support\AuditLogger;
 use App\Support\TwoFactorAuth;
 use App\Support\WorkspaceContent as Content;
 use Illuminate\Http\Request;
@@ -65,6 +66,8 @@ class WorkspaceController extends Controller
 
         Auth::login($user);
         $r->session()->regenerate();
+        $r->session()->put('nexo_auth_version', (int) $user->auth_version);
+        AuditLogger::record($r, 'auth.login', 'Inicio de sesión correcto', 'user', (int) $user->id, $user->name);
 
         return response()->json(['user' => $r->user()->profilePayload()])
             ->header('Cache-Control', 'no-store, private');
@@ -73,6 +76,10 @@ class WorkspaceController extends Controller
 
     public function logout(Request $r)
     {
+
+        if ($r->user()) {
+            AuditLogger::record($r, 'auth.logout', 'Cierre de sesión', 'user', (int) $r->user()->id, $r->user()->name);
+        }
 
         $token = $r->user()?->currentAccessToken();
         if ($token instanceof \Laravel\Sanctum\PersonalAccessToken) {
@@ -209,7 +216,7 @@ class WorkspaceController extends Controller
                     Content::bind($r->user()->id, 'task_id', $task->id, array_merge($data['description_blocks'] ?? $task->description_blocks ?? [], $data['notes_blocks'] ?? $task->notes_blocks ?? []));
                 }
 
-                Content::log($r->user()->id, $new ? 'Creado' : 'Actualizado', 'task', $task->id, $task->title);
+                Content::log($r->user()->id, $new ? 'Creado' : 'Actualizado', 'task', $task->id, $task->title, ['fields' => array_keys($task->getChanges())]);
 
                 if (! $new && ! $wasReturnResolved && $task->environment_return_resolved) {
                     $action = 'Error del regreso marcado como resuelto';
@@ -270,7 +277,7 @@ class WorkspaceController extends Controller
         $this->resetProductionNotificationIfNeeded($task);
         $mail = $this->notifyTaskEmail($task);
 
-        Content::log($r->user()->id, 'Estado: '.Task::STATUSES[$task->status], 'task', $task->id, $task->title);
+        Content::log($r->user()->id, 'Estado: '.Task::STATUSES[$task->status], 'task', $task->id, $task->title, ['fields' => array_keys($task->getChanges())]);
         return response()->json($task->setAttribute('notification', $mail));
 
     }
@@ -325,7 +332,7 @@ class WorkspaceController extends Controller
             if ($returningToEarlierEnvironment) {
                 $action .= ' · Error registrado: '.mb_substr($reason, 0, 180);
             }
-            Content::log($r->user()->id, $action, 'task', $task->id, $task->title);
+            Content::log($r->user()->id, $action, 'task', $task->id, $task->title, ['fields' => array_keys($task->getChanges())]);
         });
 
         $this->resetProductionNotificationIfNeeded($task);

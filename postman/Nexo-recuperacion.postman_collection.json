@@ -1,0 +1,64 @@
+{
+  "info": {
+    "name": "Nexo · Recuperación de acceso",
+    "description": "Prueba los formularios web de recuperación. No incluye credenciales; pedir un enlace envía un correo real.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "const xsrf = pm.cookies.get('XSRF-TOKEN');",
+          "if (xsrf) pm.request.headers.upsert({ key: 'X-XSRF-TOKEN', value: decodeURIComponent(xsrf) });"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    { "key": "base_url", "value": "https://tu-dominio.cl" },
+    { "key": "email", "value": "" },
+    { "key": "reset_token", "value": "" },
+    { "key": "new_password", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1 · Abrir recuperación (inicia sesión web y CSRF)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Accept", "value": "text/html" }],
+        "url": { "raw": "{{base_url}}/password/forgot", "host": ["{{base_url}}"], "path": ["password", "forgot"] },
+        "description": "Ejecútala primero para recibir cookies de sesión y CSRF."
+      },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Formulario de recuperación disponible', () => pm.response.to.have.status(200));"] } }]
+    },
+    {
+      "name": "2 · Pedir enlace (envía correo real)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Accept", "value": "text/html" }],
+        "body": { "mode": "urlencoded", "urlencoded": [{ "key": "email", "value": "{{email}}", "type": "text" }] },
+        "url": { "raw": "{{base_url}}/password/forgot", "host": ["{{base_url}}"], "path": ["password", "forgot"] },
+        "description": "Modifica el estado de acceso enviando un enlace temporal si el correo pertenece a una cuenta. La respuesta es igual si no existe."
+      },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Solicitud procesada sin revelar si la cuenta existe', () => pm.expect([200, 302]).to.include(pm.response.code));"] } }]
+    },
+    {
+      "name": "3 · Cambiar clave (pega el token recibido)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Accept", "value": "text/html" }],
+        "body": { "mode": "urlencoded", "urlencoded": [
+          { "key": "token", "value": "{{reset_token}}", "type": "text" },
+          { "key": "email", "value": "{{email}}", "type": "text" },
+          { "key": "password", "value": "{{new_password}}", "type": "text" },
+          { "key": "password_confirmation", "value": "{{new_password}}", "type": "text" }
+        ] },
+        "url": { "raw": "{{base_url}}/reset-password", "host": ["{{base_url}}"], "path": ["reset-password"] },
+        "description": "Copia el token del enlace del correo antes de probar. La contraseña exige 12 caracteres; las demás sesiones y tokens del usuario se revocan. Usa una cuenta de prueba."
+      },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Respuesta del formulario de cambio de clave', () => pm.expect([200, 302, 422]).to.include(pm.response.code));"] } }]
+    }
+  ]
+}

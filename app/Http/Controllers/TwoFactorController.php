@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use App\Support\TwoFactorAuth;
+use App\Support\AuditLogger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -72,6 +73,8 @@ class TwoFactorController extends Controller
         });
         Cache::forget($this->pendingSecretKey($user));
 
+        AuditLogger::record($request, 'security.two_factor.enabled', 'Verificación en dos pasos activada', 'user', (int) $user->id, $user->name);
+
         return response()->json([
             'enabled' => true,
             'recovery_codes' => $codes,
@@ -98,6 +101,8 @@ class TwoFactorController extends Controller
             'two_factor_last_used_step' => null,
             'two_factor_recovery_codes' => null,
         ])->save();
+
+        AuditLogger::record($request, 'security.two_factor.disabled', 'Verificación en dos pasos desactivada', 'user', (int) $user->id, $user->name);
 
         return response()->json(['enabled' => false])->header('Cache-Control', 'no-store, private');
     }

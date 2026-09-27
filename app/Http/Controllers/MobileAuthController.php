@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use App\Support\LoginProtection;
+use App\Support\AuditLogger;
 use App\Support\TwoFactorAuth;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -53,6 +54,7 @@ class MobileAuthController extends Controller
         }
 
         $protection->succeeded($request);
+        AuditLogger::record($request, 'auth.login', 'Inicio de sesión correcto (Android)', 'user', (int) $user->id, $user->name, actorOverride: $user);
 
         return response()->json([
             'user' => $user->profilePayload(),

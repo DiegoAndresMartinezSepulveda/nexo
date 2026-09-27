@@ -27,6 +27,8 @@ yarn-error.log
 /frontend/dist/
 /frontend/mobile-app/
 /mobile-app/
+/frontend/android/.idea/
+/tmp/
 .env.*
 !.env.example
 !.env.hostinger.example

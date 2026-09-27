@@ -196,7 +196,7 @@ class ContentController extends Controller
             'color' => ['required', Rule::in(['yellow', 'blue', 'green', 'red', 'purple', 'gray'])], 'pinned' => 'required|boolean', 'archived' => 'required|boolean',
             'category' => 'nullable|string|max:100', 'tags' => 'nullable|array|max:20', 'tags.*' => 'string|max:50',
             'diagram' => 'nullable|array:direction,nodes,edges,strokes', 'diagram.direction' => ['required_if:kind,diagram', Rule::in(['TD', 'LR'])],
-            'diagram.nodes' => 'required_if:kind,diagram|array|min:1|max:60', 'diagram.nodes.*.id' => 'required|string|regex:/^n[0-9]+$/|distinct', 'diagram.nodes.*.x' => 'sometimes|numeric|min:0|max:5000', 'diagram.nodes.*.y' => 'sometimes|numeric|min:0|max:5000', 'diagram.nodes.*.label' => 'required|string|max:180', 'diagram.nodes.*.shape' => ['required', Rule::in(['process', 'decision', 'terminal', 'text', 'note', 'image', 'ellipse'])],
+            'diagram.nodes' => 'required_if:kind,diagram|array|min:1|max:60', 'diagram.nodes.*.id' => 'required|string|regex:/^n[0-9]+$/|distinct', 'diagram.nodes.*.x' => 'sometimes|numeric|min:0|max:10000', 'diagram.nodes.*.y' => 'sometimes|numeric|min:0|max:7000', 'diagram.nodes.*.label' => 'required|string|max:180', 'diagram.nodes.*.shape' => ['required', Rule::in(['process', 'decision', 'terminal', 'text', 'note', 'image', 'ellipse'])],
             'diagram.nodes.*.fill' => 'sometimes|string|regex:/^#[0-9a-fA-F]{6}$/', 'diagram.nodes.*.stroke' => 'sometimes|string|regex:/^#[0-9a-fA-F]{6}$/', 'diagram.nodes.*.bold' => 'sometimes|boolean', 'diagram.nodes.*.fontSize' => 'sometimes|integer|min:10|max:32', 'diagram.nodes.*.media_id' => 'sometimes|integer', 'diagram.nodes.*.listStyle' => ['sometimes', Rule::in(['bullet', 'number'])],
             'diagram.edges' => 'present_if:kind,diagram|array|max:120', 'diagram.edges.*.from' => 'required|string', 'diagram.edges.*.to' => 'required|string', 'diagram.edges.*.label' => 'nullable|string|max:80',
             'diagram.strokes' => 'nullable|array|max:100', 'diagram.strokes.*.points' => 'required|string|max:30000', 'diagram.strokes.*.color' => 'required|string|regex:/^#[0-9a-fA-F]{6}$/',
@@ -237,7 +237,7 @@ class ContentController extends Controller
             if ($entry->kind === 'diagram' && ($entry->user_id === $r->user()->id || $r->user()->role === 'admin')) {
                 $entry->sharedUsers()->sync(collect($shares)->mapWithKeys(fn ($share) => [(int) $share['user_id'] => ['permission' => $share['permission']]])->all());
             }
-            Content::log($r->user()->id, $new ? 'Creado' : 'Actualizado', $entry->kind, $entry->id, $entry->title);
+            Content::log($r->user()->id, $new ? 'Creado' : 'Actualizado', $entry->kind, $entry->id, $entry->title, ['fields' => array_keys($entry->getChanges())]);
         });
 
         return response()->json($this->present($r, $entry), $entry->wasRecentlyCreated ? 201 : 200);

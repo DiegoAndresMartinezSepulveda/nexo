@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Models\Media;
+use App\Support\AuditLogger;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
@@ -75,8 +76,24 @@ class WorkspaceContent
         Media::whereIn('id', $ids)->update([$foreignKey => $id]);
     }
 
-    public static function log(int $userId, string $action, string $type, int $id, string $title): void
+    public static function log(int $userId, string $action, string $type, int $id, string $title, array $metadata = []): void
     {
         DB::table('activities')->insert(['workspace_id' => Spaces::id(), 'user_id' => $userId, 'action' => $action, 'subject_type' => $type, 'subject_id' => $id, 'title' => mb_substr($title, 0, 255), 'created_at' => now(), 'updated_at' => now()]);
+
+        $summary = trim(explode(' · ', $action, 2)[0]);
+        $verb = match (true) {
+            str_starts_with($summary, 'Creado') => 'created',
+            str_starts_with($summary, 'Actualizado') => 'updated',
+            str_starts_with($summary, 'Eliminado') => 'deleted',
+            str_starts_with($summary, 'Movida') => 'moved',
+            str_starts_with($summary, 'Estado:') => 'status.changed',
+            str_starts_with($summary, 'Error del regreso') => 'issue.resolved',
+            str_starts_with($summary, 'Lista de entrega') => 'checklist.updated',
+            str_starts_with($summary, 'Adjunto') => 'attachment.deleted',
+            str_starts_with($summary, 'Aviso de') => 'notification.sent',
+            default => 'changed',
+        };
+
+        AuditLogger::record(request(), $type.'.'.$verb, $summary, $type, $id, $title, Spaces::id(), $metadata);
     }
 }
