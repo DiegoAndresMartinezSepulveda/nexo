@@ -409,12 +409,11 @@ export class AppComponent implements OnInit {
     const suggestion=this.writingImprove();if(!suggestion)return;
     this.draft.title=suggestion.title;this.draft.description=suggestion.description;this.taskDescriptionBlocks=[{type:'text',text:suggestion.description}];this.writingImprove.set(null);this.notice.set('Mejora aplicada. Revisa la tarea antes de guardarla.');
   }
-  openStatusModal(task:Task){
-    const checklist=task.checklist||[],done=checklist.filter(step=>step.done).length;
-    const description=task.description_blocks?.length?task.description_blocks.filter(block=>block.type==='text').map(block=>block.text).join('\n\n'):task.description||'';
-    const subject=`Estatus: ${task.title}`;
-    const body=[`Hola,`,``,`${task.title}`,`Ambiente: ${this.environmentLabels[task.environment]||task.environment}`,`Estado: ${this.statusLabels[task.status]||task.status}`,``,description.trim(),checklist.length?`Avance: ${done} de ${checklist.length} pasos completados.`:''].filter(Boolean).join('\n');
-    this.statusDraft.set({subject,body});
+  openStatusModal(){
+    const all=this.tasks(),pending=all.filter(task=>!(task.environment==='production'&&task.status==='done')),completed=all.filter(task=>task.environment==='production'&&task.status==='done');
+    const line=(task:Task)=>`- ${this.taskCode(task.id)} · ${task.title} — ${this.environmentLabels[task.environment]||task.environment} / ${this.statusLabels[task.status]||task.status}`;
+    const body=[`Hola,`,``,`Estatus general del trabajo`,`Total de tareas: ${all.length}`,`Producción completada: ${completed.length}`,`Pendientes o fuera de Producción completada: ${pending.length}`,``,`Pendientes y tareas por completar:`,pending.length?pending.map(line).join('\n'):'No hay tareas pendientes.',``,`Tareas completadas en Producción:`,completed.length?completed.map(line).join('\n'):'No hay tareas completadas en Producción.'].join('\n');
+    this.statusDraft.set({subject:'Estatus general de Nexo',body});
   }
   async copyStatus(){const status=this.statusDraft();if(!status)return;try{await navigator.clipboard.writeText(`${status.subject}\n\n${status.body}`);this.notice.set('Estatus copiado.');}catch{this.error.set('No se pudo copiar el estatus.');}}
   async back() { this.pageLoading.set(true);this.view.set('board'); this.error.set('');try{await this.loadTasks();}finally{this.pageLoading.set(false);} }
