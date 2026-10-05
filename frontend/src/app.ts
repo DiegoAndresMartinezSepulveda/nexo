@@ -86,6 +86,8 @@ export class AppComponent implements OnInit {
   catalogKind:'clients'|'projects'='clients';catalogId:number|null=null;catalogDraft={name:'',code:'',description:'',client_id:''};catalogModal=signal(false);
   moveTask=signal<Task|null>(null);moveEnvironment='local';moveStatus='development';moveReason='';dragOver=signal('');
   previewMedia=signal<Media|null>(null);
+  writingImprove=signal<{title:string;description:string;originalTitle:string;originalDescription:string}|null>(null);
+  statusDraft=signal<{subject:string;body:string}|null>(null);
   nav=[['dashboard','grid','Inicio'],['board','columns','Tablero'],['notes','note','Notas importantes'],['library','folder','Biblioteca'],['cheatsheets','file','Cheat sheets'],['diagrams','layers','Diagramas']];
   management=[['clients','users','Clientes'],['projects','layers','Proyectos'],['history','history','Historial']];
   sidebarPreferences=[{key:'dashboard',label:'Inicio',icon:'grid',description:'Resumen del espacio'},{key:'board',label:'Tablero',icon:'columns',description:'Tareas y estados'},{key:'notes',label:'Notas importantes',icon:'note',description:'Ideas y listas personales'},{key:'library',label:'Biblioteca',icon:'folder',description:'Archivos y referencias'},{key:'cheatsheets',label:'Cheat sheets',icon:'file',description:'PDF e imágenes de consulta'},{key:'diagrams',label:'Diagramas',icon:'layers',description:'Pizarras y diagramas'},{key:'clients',label:'Clientes',icon:'users',description:'Directorio de clientes'},{key:'projects',label:'Proyectos',icon:'layers',description:'Proyectos por cliente'},{key:'history',label:'Historial',icon:'history',description:'Actividad reciente'},{key:'audit',label:'Auditoría',icon:'history',description:'Registro de cambios y accesos',adminOnly:true},{key:'spaces',label:'Espacios',icon:'layers',description:'Administrar espacios',adminOnly:true},{key:'users',label:'Usuarios',icon:'users',description:'Personas y permisos',adminOnly:true}];
@@ -390,6 +392,31 @@ export class AppComponent implements OnInit {
       this.files = []; this.view.set(this.defaultEdit()&&this.canEdit()?'detail':'taskreading'); this.loadHistory(task.id); window.scrollTo(0, 0);
     } catch (e) { this.showError(e); } finally { this.busy.set(false);this.pageLoading.set(false); }
   }
+  private improveWriting(text:string, description=false){
+    let value=text.replace(/\s+/g,' ').replace(/\s+([,.!?;:])/g,'$1').trim();
+    const replacements:Array<[string,string]>=[['\\bq\\b','que'],['\\bxq\\b','porque'],['\\btmb\\b','también'],['\\bdnd\\b','donde'],['\\bqe\\b','que'],['\\bproblma\\b','problema'],['\\bconfiguracion\\b','configuración'],['\\bfuncion\\b','función']];
+    for(const [pattern,replacement] of replacements)value=value.replace(new RegExp(pattern,'gi'),replacement);
+    value=value.replace(/(^|[.!?]\s+)([a-záéíóúñ])/g,(_,prefix,letter)=>prefix+letter.toUpperCase());
+    if(value&&!/[.!?]$/.test(value)&&description)value+='.';
+    return value;
+  }
+  openWritingImprovement(){
+    if(!this.canEdit()||this.view()!=='detail')return;
+    const originalTitle=this.draft.title,originalDescription=this.taskDescriptionBlocks.map(block=>block.type==='text'?block.text:'').filter(Boolean).join('\n\n')||this.draft.description||'';
+    this.writingImprove.set({originalTitle,originalDescription,title:this.improveWriting(originalTitle),description:this.improveWriting(originalDescription,true)});
+  }
+  applyWritingImprovement(){
+    const suggestion=this.writingImprove();if(!suggestion)return;
+    this.draft.title=suggestion.title;this.draft.description=suggestion.description;this.taskDescriptionBlocks=[{type:'text',text:suggestion.description}];this.writingImprove.set(null);this.notice.set('Mejora aplicada. Revisa la tarea antes de guardarla.');
+  }
+  openStatusModal(task:Task){
+    const checklist=task.checklist||[],done=checklist.filter(step=>step.done).length;
+    const description=task.description_blocks?.length?task.description_blocks.filter(block=>block.type==='text').map(block=>block.text).join('\n\n'):task.description||'';
+    const subject=`Estatus: ${task.title}`;
+    const body=[`Hola,`,``,`${task.title}`,`Ambiente: ${this.environmentLabels[task.environment]||task.environment}`,`Estado: ${this.statusLabels[task.status]||task.status}`,``,description.trim(),checklist.length?`Avance: ${done} de ${checklist.length} pasos completados.`:''].filter(Boolean).join('\n');
+    this.statusDraft.set({subject,body});
+  }
+  async copyStatus(){const status=this.statusDraft();if(!status)return;try{await navigator.clipboard.writeText(`${status.subject}\n\n${status.body}`);this.notice.set('Estatus copiado.');}catch{this.error.set('No se pudo copiar el estatus.');}}
   async back() { this.pageLoading.set(true);this.view.set('board'); this.error.set('');try{await this.loadTasks();}finally{this.pageLoading.set(false);} }
   selectFiles(event: Event) {
     const input = event.target as HTMLInputElement;
