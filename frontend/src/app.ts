@@ -87,7 +87,7 @@ export class AppComponent implements OnInit {
   moveTask=signal<Task|null>(null);moveEnvironment='local';moveStatus='development';moveReason='';dragOver=signal('');
   previewMedia=signal<Media|null>(null);
   writingImprove=signal<{title:string;description:string;originalTitle:string;originalDescription:string}|null>(null);
-  statusDraft=signal<{subject:string;body:string}|null>(null);
+  statusDraft=signal<{recipients:string;subject:string;body:string}|null>(null);
   nav=[['dashboard','grid','Inicio'],['board','columns','Tablero'],['notes','note','Notas importantes'],['library','folder','Biblioteca'],['cheatsheets','file','Cheat sheets'],['diagrams','layers','Diagramas']];
   management=[['clients','users','Clientes'],['projects','layers','Proyectos'],['history','history','Historial']];
   sidebarPreferences=[{key:'dashboard',label:'Inicio',icon:'grid',description:'Resumen del espacio'},{key:'board',label:'Tablero',icon:'columns',description:'Tareas y estados'},{key:'notes',label:'Notas importantes',icon:'note',description:'Ideas y listas personales'},{key:'library',label:'Biblioteca',icon:'folder',description:'Archivos y referencias'},{key:'cheatsheets',label:'Cheat sheets',icon:'file',description:'PDF e imágenes de consulta'},{key:'diagrams',label:'Diagramas',icon:'layers',description:'Pizarras y diagramas'},{key:'clients',label:'Clientes',icon:'users',description:'Directorio de clientes'},{key:'projects',label:'Proyectos',icon:'layers',description:'Proyectos por cliente'},{key:'history',label:'Historial',icon:'history',description:'Actividad reciente'},{key:'audit',label:'Auditoría',icon:'history',description:'Registro de cambios y accesos',adminOnly:true},{key:'spaces',label:'Espacios',icon:'layers',description:'Administrar espacios',adminOnly:true},{key:'users',label:'Usuarios',icon:'users',description:'Personas y permisos',adminOnly:true}];
@@ -416,9 +416,10 @@ export class AppComponent implements OnInit {
     const statusOrder=[...this.workflow().statuses.map(status=>[status.key,status.label] as [string,string]),...Array.from(new Set(all.map(task=>task.status))).filter(key=>!this.workflow().statuses.some(status=>status.key===key)).map(key=>[key,this.statusLabels[key]||key] as [string,string])];
     const grouped=environmentOrder.map(([environment,environmentLabel])=>{const tasks=all.filter(task=>task.environment===environment);if(!tasks.length)return '';const statuses=statusOrder.map(([status,statusLabel])=>{const matching=tasks.filter(task=>task.status===status);return matching.length?`${statusLabel}\n${matching.map(task=>`  - ${this.taskCode(task.id)} · ${task.client_id?this.clientName(task.client_id)+' · ':''}${task.title}`).join('\n')}`:''}).filter(Boolean);return `${environmentLabel}\n${statuses.join('\n')}`;}).filter(Boolean).join('\n\n');
     const body=[`Hola,`,``,`Estatus general del trabajo`,`Total de tareas: ${all.length}`,`Producción completada: ${completed.length}`,`Pendientes o fuera de Producción completada: ${pending.length}`,``,`Detalle por ambiente y estado:`,grouped||'No hay tareas registradas.'].join('\n');
-    this.statusDraft.set({subject:'Estatus general de Nexo',body});
+    this.statusDraft.set({recipients:this.defaultRecipients('email'),subject:'Estatus general de Nexo',body});
   }
   async copyStatus(){const status=this.statusDraft();if(!status)return;try{await navigator.clipboard.writeText(`${status.subject}\n\n${status.body}`);this.notice.set('Estatus copiado.');}catch{this.error.set('No se pudo copiar el estatus.');}}
+  openStatusEmail(){const status=this.statusDraft();if(!status)return;const recipients=status.recipients.split(/[;,\n]+/).map(email=>email.trim()).filter(Boolean).join(',');const query=new URLSearchParams({subject:status.subject,body:status.body});window.location.href=`mailto:${recipients}?${query.toString()}`;}
   async back() { this.pageLoading.set(true);this.view.set('board'); this.error.set('');try{await this.loadTasks();}finally{this.pageLoading.set(false);} }
   selectFiles(event: Event) {
     const input = event.target as HTMLInputElement;
