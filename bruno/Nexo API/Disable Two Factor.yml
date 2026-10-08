@@ -1,0 +1,31 @@
+info:
+  name: Disable Two Factor
+  type: http
+  seq: 10
+
+http:
+  method: POST
+  url: '{{baseUrl}}/api/two-factor/disable'
+  headers:
+    - name: Accept
+      value: application/json
+    - name: Content-Type
+      value: application/json
+    - name: Authorization
+      value: Bearer {{token}}
+  body:
+    type: json
+    data: |-
+      {
+        "password": "TU_CONTRASENA_ACTUAL",
+        "code": "123456"
+      }
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+docs: POST /api/two-factor/disable. Update request variables and JSON body as required by the endpoint.

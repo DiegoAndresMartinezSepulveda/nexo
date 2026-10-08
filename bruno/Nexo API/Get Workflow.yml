@@ -1,0 +1,24 @@
+info:
+  name: Get Workflow
+  type: http
+  seq: 36
+
+http:
+  method: GET
+  url: '{{baseUrl}}/api/workflow'
+  headers:
+    - name: Accept
+      value: application/json
+    - name: X-Workspace-ID
+      value: '{{workspaceId}}'
+    - name: Authorization
+      value: Bearer {{token}}
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+docs: GET /api/workflow. Update request variables and JSON body as required by the endpoint.

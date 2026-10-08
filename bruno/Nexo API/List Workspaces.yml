@@ -1,0 +1,22 @@
+info:
+  name: List Workspaces
+  type: http
+  seq: 11
+
+http:
+  method: GET
+  url: '{{baseUrl}}/api/workspaces'
+  headers:
+    - name: Accept
+      value: application/json
+    - name: Authorization
+      value: Bearer {{token}}
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+docs: GET /api/workspaces. Update request variables and JSON body as required by the endpoint.

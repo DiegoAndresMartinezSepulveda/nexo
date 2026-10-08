@@ -1,0 +1,34 @@
+info:
+  name: Update User
+  type: http
+  seq: 16
+
+http:
+  method: PUT
+  url: '{{baseUrl}}/api/users/{{userId}}'
+  headers:
+    - name: Accept
+      value: application/json
+    - name: Content-Type
+      value: application/json
+    - name: Authorization
+      value: Bearer {{token}}
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Usuario actualizado",
+        "email": "usuario@example.com",
+        "password": null,
+        "role": "editor",
+        "workspace_ids": [1]
+      }
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+docs: PUT /api/users/{{userId}}. Update request variables and JSON body as required by the endpoint.

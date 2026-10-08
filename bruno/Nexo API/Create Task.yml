@@ -1,0 +1,46 @@
+info:
+  name: Create Task
+  type: http
+  seq: 42
+
+http:
+  method: POST
+  url: '{{baseUrl}}/api/tasks'
+  headers:
+    - name: Accept
+      value: application/json
+    - name: X-Workspace-ID
+      value: '{{workspaceId}}'
+    - name: Content-Type
+      value: application/json
+    - name: Authorization
+      value: Bearer {{token}}
+  body:
+    type: json
+    data: |-
+      {
+        "title": "Prueba desde Bruno",
+        "description": "Tarea de prueba",
+        "description_blocks": [],
+        "notes_blocks": [],
+        "environment": "backlog",
+        "status": "pending",
+        "priority": "normal",
+        "task_type": "task",
+        "is_fire": false,
+        "client_id": null,
+        "project_id": null,
+        "checklist_text": "Validar respuesta",
+        "tags": "bruno,prueba",
+        "autosave": true,
+        "notify_on_production": false
+      }
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+docs: POST /api/tasks. Update request variables and JSON body as required by the endpoint.

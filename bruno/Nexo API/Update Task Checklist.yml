@@ -1,0 +1,33 @@
+info:
+  name: Update Task Checklist
+  type: http
+  seq: 47
+
+http:
+  method: PATCH
+  url: '{{baseUrl}}/api/tasks/{{taskId}}/checklist'
+  headers:
+    - name: Accept
+      value: application/json
+    - name: X-Workspace-ID
+      value: '{{workspaceId}}'
+    - name: Content-Type
+      value: application/json
+    - name: Authorization
+      value: Bearer {{token}}
+  body:
+    type: json
+    data: |-
+      {
+        "index": 0,
+        "done": true
+      }
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+docs: PATCH /api/tasks/{{taskId}}/checklist. Update request variables and JSON body as required by the endpoint.

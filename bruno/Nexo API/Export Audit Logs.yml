@@ -1,0 +1,22 @@
+info:
+  name: Export Audit Logs
+  type: http
+  seq: 20
+
+http:
+  method: GET
+  url: '{{baseUrl}}/api/audit-logs/export'
+  headers:
+    - name: Accept
+      value: application/json
+    - name: Authorization
+      value: Bearer {{token}}
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+docs: GET /api/audit-logs/export. Update request variables and JSON body as required by the endpoint.

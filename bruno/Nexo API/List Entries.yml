@@ -1,0 +1,24 @@
+info:
+  name: List Entries
+  type: http
+  seq: 26
+
+http:
+  method: GET
+  url: '{{baseUrl}}/api/entries?kind={{entryKind}}&archived=0'
+  headers:
+    - name: Accept
+      value: application/json
+    - name: X-Workspace-ID
+      value: '{{workspaceId}}'
+    - name: Authorization
+      value: Bearer {{token}}
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+docs: GET /api/entries. Update request variables and JSON body as required by the endpoint.

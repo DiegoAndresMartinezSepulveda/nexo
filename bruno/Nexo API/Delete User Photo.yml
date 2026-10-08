@@ -1,0 +1,22 @@
+info:
+  name: Delete User Photo
+  type: http
+  seq: 19
+
+http:
+  method: DELETE
+  url: '{{baseUrl}}/api/users/{{userId}}/photo'
+  headers:
+    - name: Accept
+      value: application/json
+    - name: Authorization
+      value: Bearer {{token}}
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+docs: DELETE /api/users/{{userId}}/photo. Update request variables and JSON body as required by the endpoint.

@@ -1,0 +1,34 @@
+info:
+  name: Update Catalog Item
+  type: http
+  seq: 24
+
+http:
+  method: PUT
+  url: '{{baseUrl}}/api/catalog/{{kind}}/{{catalogId}}'
+  headers:
+    - name: Accept
+      value: application/json
+    - name: X-Workspace-ID
+      value: '{{workspaceId}}'
+    - name: Content-Type
+      value: application/json
+    - name: Authorization
+      value: Bearer {{token}}
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Cliente actualizado",
+        "code": "CLI-001",
+        "client_id": null
+      }
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+docs: PUT /api/catalog/{{kind}}/{{catalogId}}. Update request variables and JSON body as required by the endpoint.

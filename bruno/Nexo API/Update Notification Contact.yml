@@ -1,0 +1,35 @@
+info:
+  name: Update Notification Contact
+  type: http
+  seq: 34
+
+http:
+  method: PUT
+  url: '{{baseUrl}}/api/notification-contacts/{{contactId}}'
+  headers:
+    - name: Accept
+      value: application/json
+    - name: X-Workspace-ID
+      value: '{{workspaceId}}'
+    - name: Content-Type
+      value: application/json
+    - name: Authorization
+      value: Bearer {{token}}
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Destinatario actualizado",
+        "email": "destinatario@example.com",
+        "channel": "email",
+        "is_default": false
+      }
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+docs: PUT /api/notification-contacts/{{contactId}}. Update request variables and JSON body as required by the endpoint.

@@ -1,0 +1,30 @@
+info:
+  name: Mobile Login
+  type: http
+  seq: 3
+
+http:
+  method: POST
+  url: '{{baseUrl}}/api/mobile/login'
+  headers:
+    - name: Accept
+      value: application/json
+    - name: Content-Type
+      value: application/json
+  body:
+    type: json
+    data: |-
+      {
+        "email": "diego.martinez.sepulveda06@gmail.com",
+        "password": "ESCRIBE_TU_CONTRASENA_AQUI",
+        "captcha_id": "PEGA_AQUI_EL_CAPTCHA_ID",
+        "captcha_answer": "4"
+      }
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+docs: POST /api/mobile/login. Update request variables and JSON body as required by the endpoint.

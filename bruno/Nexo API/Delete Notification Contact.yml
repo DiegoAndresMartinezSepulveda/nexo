@@ -1,0 +1,24 @@
+info:
+  name: Delete Notification Contact
+  type: http
+  seq: 35
+
+http:
+  method: DELETE
+  url: '{{baseUrl}}/api/notification-contacts/{{contactId}}'
+  headers:
+    - name: Accept
+      value: application/json
+    - name: X-Workspace-ID
+      value: '{{workspaceId}}'
+    - name: Authorization
+      value: Bearer {{token}}
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+docs: DELETE /api/notification-contacts/{{contactId}}. Update request variables and JSON body as required by the endpoint.

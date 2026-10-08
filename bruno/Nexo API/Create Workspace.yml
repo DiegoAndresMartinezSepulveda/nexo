@@ -1,0 +1,31 @@
+info:
+  name: Create Workspace
+  type: http
+  seq: 12
+
+http:
+  method: POST
+  url: '{{baseUrl}}/api/workspaces'
+  headers:
+    - name: Accept
+      value: application/json
+    - name: Content-Type
+      value: application/json
+    - name: Authorization
+      value: Bearer {{token}}
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Nuevo espacio",
+        "color": "blue"
+      }
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+docs: POST /api/workspaces. Update request variables and JSON body as required by the endpoint.

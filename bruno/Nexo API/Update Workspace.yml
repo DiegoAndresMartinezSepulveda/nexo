@@ -1,0 +1,31 @@
+info:
+  name: Update Workspace
+  type: http
+  seq: 13
+
+http:
+  method: PUT
+  url: '{{baseUrl}}/api/workspaces/{{workspaceId}}'
+  headers:
+    - name: Accept
+      value: application/json
+    - name: Content-Type
+      value: application/json
+    - name: Authorization
+      value: Bearer {{token}}
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Espacio actualizado",
+        "color": "blue"
+      }
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+docs: PUT /api/workspaces/{{workspaceId}}. Update request variables and JSON body as required by the endpoint.

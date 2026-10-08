@@ -1,0 +1,32 @@
+info:
+  name: Update Task Status
+  type: http
+  seq: 46
+
+http:
+  method: PATCH
+  url: '{{baseUrl}}/api/tasks/{{taskId}}/status'
+  headers:
+    - name: Accept
+      value: application/json
+    - name: X-Workspace-ID
+      value: '{{workspaceId}}'
+    - name: Content-Type
+      value: application/json
+    - name: Authorization
+      value: Bearer {{token}}
+  body:
+    type: json
+    data: |-
+      {
+        "status": "review"
+      }
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+docs: PATCH /api/tasks/{{taskId}}/status. Update request variables and JSON body as required by the endpoint.
