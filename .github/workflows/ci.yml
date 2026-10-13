@@ -13,7 +13,7 @@ jobs:
   test-sqlite-and-build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Configure PHP
         uses: shivammathur/setup-php@v2
         with:
@@ -71,7 +71,7 @@ jobs:
       QUEUE_CONNECTION: sync
       MAIL_MAILER: array
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Configure PHP with MySQL support
         uses: shivammathur/setup-php@v2
         with:
