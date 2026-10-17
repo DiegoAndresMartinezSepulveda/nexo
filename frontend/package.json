@@ -15,7 +15,7 @@
     "@angular/compiler": "^21.2.0",
     "@angular/core": "^21.2.0",
     "@angular/forms": "^21.2.0",
-    "@angular/platform-browser": "^21.2.0",
+    "@angular/platform-browser": "^22.2.0",
     "@capacitor/android": "^8.5.2",
     "@capacitor/core": "^8.5.2",
     "dompurify": "^3.4.16",
